@@ -1,0 +1,41 @@
+name: Export FarSeat Frontend Dependencies
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Restore pinned frontend manifest
+        shell: bash
+        run: |
+          mkdir -p payload
+          cat ci/frontend-src.part*.b64 | base64 -d | tar -xzf - -C payload
+          test -f payload/frontend/package.json
+      - name: Restore exact lockfile
+        uses: actions/download-artifact@v4
+        with:
+          name: farseat-package-lock
+          path: payload/frontend
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          repository: saikiranpulagalla/farseat
+          run-id: 36326827639
+      - name: Install dependencies
+        working-directory: payload/frontend
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Archive node_modules
+        shell: bash
+        run: tar -C payload/frontend -czf /tmp/farseat-node-modules.tgz node_modules
+      - uses: actions/upload-artifact@v4
+        with:
+          name: farseat-node-modules-v103
+          path: /tmp/farseat-node-modules.tgz
