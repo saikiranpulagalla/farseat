@@ -1,0 +1,56 @@
+name: Materialize FarSeat v1.0.2 Source
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  materialize:
+    if: ${{ !contains(github.event.head_commit.message, 'materialize FarSeat v1.0.2 source') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+          fetch-depth: 0
+
+      - name: Reconstruct exact source archive
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s ci/full-src.part00.b64
+          test -s ci/full-src.part01.b64
+          test -s ci/full-src.part02.b64
+          cat ci/full-src.part*.b64 | base64 -d > /tmp/farseat-full-src.tar.gz
+          echo "e8051080f8619e126d04787eeab2a082dc423632f6f4b4122fe0000a802365e7  /tmp/farseat-full-src.tar.gz" | sha256sum -c -
+          rm -rf /tmp/farseat-src
+          mkdir -p /tmp/farseat-src
+          tar -xzf /tmp/farseat-full-src.tar.gz -C /tmp/farseat-src
+          test -f /tmp/farseat-src/backend/app/main.py
+          test -f /tmp/farseat-src/frontend/package-lock.json
+          test -f /tmp/farseat-src/.github/workflows/ci.yml
+
+      - name: Replace staging repo with exact project tree
+        shell: bash
+        run: |
+          set -euo pipefail
+          rsync -a --delete --exclude='.git/' /tmp/farseat-src/ ./
+          test ! -e ci/full-src.part00.b64
+          test -f README.md
+          test -f frontend/src/pdf.ts
+
+      - name: Commit exact project source
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "FarSeat Release Bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "No source changes to commit"
+            exit 0
+          fi
+          git commit -m "release: materialize FarSeat v1.0.2 source"
+          git push origin HEAD:main
