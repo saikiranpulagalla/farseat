@@ -35,10 +35,9 @@ jobs:
 
       - name: Verify lockfile
         shell: bash
-        run: |
-          test -s payload/frontend/package-lock.json
+        run: test -s payload/frontend/package-lock.json
 
-      - name: Repair test-harness syntax only
+      - name: Repair test harness and pinned PDF.js v5 render signature
         shell: bash
         run: |
           cat > payload/frontend/src/logic.test.ts <<'EOF'
@@ -68,36 +67,32 @@ jobs:
               expect(seatVisualKind(s)).toBe('unknown');
               expect(seatVisualGlyph(s)).toContain('?');
             });
-
             it('does not use a reassuring zero-below headline when all valid seats have no coverage', () => {
-              const s = {
-                ...base,
-                coverage_state: 'NONE' as const,
-                result_state: 'NO_ANALYZABLE_RESULTS' as const,
-                meets_target_count: 0,
-              };
+              const s = { ...base, coverage_state: 'NONE' as const, result_state: 'NO_ANALYZABLE_RESULTS' as const, meets_target_count: 0 };
               expect(resultsHeadline([s], 0, 1)).toContain('No seat-level target conclusion');
             });
-
             it('preserves outside as a supplementary glyph even when pass', () => {
               const s = { ...base, has_outside_reference_results: true, outside_range_count: 2 };
               expect(seatVisualKind(s)).toBe('pass');
               expect(seatVisualGlyph(s)).toContain('↗');
               expect(seatAriaLabel(s)).toContain('2 outside reference range');
             });
-
             it('shows review and unknown simultaneously', () => {
-              const s = {
-                ...base,
-                result_state: 'REVIEW_RECOMMENDED' as const,
-                coverage_state: 'PARTIAL' as const,
-                below_target_count: 1,
-                not_analyzed_count: 1,
-              };
+              const s = { ...base, result_state: 'REVIEW_RECOMMENDED' as const, coverage_state: 'PARTIAL' as const, below_target_count: 1, not_analyzed_count: 1 };
               expect(seatVisualGlyph(s)).toBe('!?');
             });
           });
           EOF
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('payload/frontend/src/pdf.ts')
+          s=p.read_text()
+          old="const task=page.render({canvasContext:ctx,viewport:vp});"
+          new="const task=page.render({canvas,canvasContext:ctx,viewport:vp});"
+          if old not in s and new not in s:
+              raise SystemExit("expected PDF.js render call not found")
+          p.write_text(s.replace(old,new))
+          PY
 
       - name: Install exact locked dependencies
         working-directory: payload/frontend
