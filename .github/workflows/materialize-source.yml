@@ -23,6 +23,10 @@ jobs:
           test -s ci/full-src.part00.b64
           test -s ci/full-src.part01.b64
           test -s ci/full-src.part02.b64
+          sha256sum ci/full-src.part*.b64
+          echo "29047a1e90df4e27597744542ecc9f695c347ae550b603a80bba3c47af63c894  ci/full-src.part00.b64" | sha256sum -c -
+          echo "c7b4f80fa5f1609f520a55184e49e09742518b08c14ac8ce3d2a49ad35732b88  ci/full-src.part01.b64" | sha256sum -c -
+          echo "f470b04c6c8b22c5ad2caa0ea0e8cef6f94b42951efbed7ac5b17f07802bfe14  ci/full-src.part02.b64" | sha256sum -c -
           cat ci/full-src.part*.b64 | base64 -d > /tmp/farseat-full-src.tar.gz
           echo "e8051080f8619e126d04787eeab2a082dc423632f6f4b4122fe0000a802365e7  /tmp/farseat-full-src.tar.gz" | sha256sum -c -
           rm -rf /tmp/farseat-src
