@@ -1,0 +1,28 @@
+name: Export Playwright Chromium
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install Playwright
+        run: |
+          python -m pip install playwright==1.55.0
+          python -m playwright install chromium
+      - name: Locate Chromium cache
+        shell: bash
+        run: |
+          echo "PW_CACHE=$HOME/.cache/ms-playwright" >> "$GITHUB_ENV"
+          test -d "$HOME/.cache/ms-playwright"
+      - name: Archive Chromium
+        run: tar -C "$HOME/.cache" -czf /tmp/farseat-playwright-chromium.tgz ms-playwright
+      - uses: actions/upload-artifact@v4
+        with:
+          name: farseat-playwright-chromium
+          path: /tmp/farseat-playwright-chromium.tgz
