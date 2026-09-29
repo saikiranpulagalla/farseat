@@ -12,7 +12,7 @@ Presentation editors understand the slide. AV tools understand the room. FarSeat
 
 ## What V1 does
 
-- accepts machine-generated PDFs up to 20 MB and 75 pages;
+- accepts PDF uploads up to 20 MiB and 75 pages; PDFs that exceed structural or safe-processing limits may be rejected;
 - extracts supported horizontal visible text without OCR;
 - models the **active displayed image**, including per-slide aspect-ratio letterboxing;
 - models up to 200 seats using perpendicular distance to the display plane;
@@ -115,7 +115,7 @@ The release validator treats absent required suites/files as failure and missing
 
 FarSeat processes uploaded PDFs to create a temporary analysis model. The original uploaded file is not intentionally retained after parsing, although the web framework may spool upload bytes to temporary storage while receiving them. Presentation and analysis objects are held in process memory with TTL expiry. A random capability token is returned once to the browser and is required for later access; tokens are stored only as SHA-256 digests and are never placed in URLs.
 
-For a public deployment, place an HTTP request-body limit in front of FastAPI as defense in depth. The included nginx configuration uses a 21 MB body limit, and the application additionally caps concurrent upload ingestion and performs a single bounded read of at most 20 MB + 1 byte before parsing. Parser work runs in a spawned subprocess with a wall deadline and memory ceiling so pathological inputs cannot consume the API process indefinitely. Parent/child transport uses a concurrently drained one-way pipe so large valid parsed models cannot deadlock behind an IPC buffer.
+For a public deployment, place an HTTP request-body limit in front of FastAPI as defense in depth. The included nginx configuration uses a 21 MB body limit, and the application additionally caps concurrent upload ingestion and performs a single bounded read of at most 20 MiB + 1 byte before parsing. Parser work runs in a spawned subprocess with a wall deadline and memory ceiling so pathological inputs cannot consume the API process indefinitely. Parent/child transport uses a concurrently drained one-way pipe so large valid parsed models cannot deadlock behind an IPC buffer. The upload ceiling and safe-processing protections are independent: a PDF within 20 MiB can still be rejected when it exceeds safe structural or processing limits.
 
 ## Tech stack
 

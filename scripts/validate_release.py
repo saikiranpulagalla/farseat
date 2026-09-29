@@ -14,7 +14,7 @@ REQUIRED=[
     ROOT/'backend'/'app'/'geometry.py', ROOT/'backend'/'app'/'reference.py', ROOT/'backend'/'app'/'numeric.py',
     ROOT/'backend'/'app'/'parser.py', ROOT/'backend'/'app'/'analysis.py', ROOT/'backend'/'app'/'store.py',
     ROOT/'backend'/'tests'/'test_api_integration.py', ROOT/'backend'/'tests'/'test_factorization.py',
-    ROOT/'backend'/'tests'/'test_parser.py', ROOT/'backend'/'tests'/'test_store.py', ROOT/'backend'/'tests'/'test_reference.py',
+    ROOT/'backend'/'tests'/'test_parser.py', ROOT/'backend'/'tests'/'test_store.py', ROOT/'backend'/'tests'/'test_reference.py', ROOT/'backend'/'tests'/'test_resource_release.py',
     ROOT/'frontend'/'package-lock.json', ROOT/'frontend'/'src'/'App.tsx', ROOT/'frontend'/'src'/'requestCoordinator.ts',
     ROOT/'frontend'/'src'/'requestCoordinator.test.ts', ROOT/'frontend'/'src'/'components'/'PdfInspector.tsx',
     ROOT/'sample'/'farseat-demo.pdf', ROOT/'scripts'/'browser_e2e.py',
@@ -97,6 +97,7 @@ def main():
     suites.append(defect_gate())
     suites.append(run('python-compile',[sys.executable,'-m','compileall','-q','app','tests'],ROOT/'backend'))
     suites.append(run('backend-tests',[sys.executable,'-m','pytest','-q'],ROOT/'backend'))
+    suites.append(run('resource-release-gate',[sys.executable,'-m','pytest','-q','-m','resource','tests/test_resource_release.py'],ROOT/'backend'))
     suites.append(run('production-api-gate',[sys.executable,'-m','pytest','-q','tests/test_api_integration.py','tests/test_factorization.py','tests/test_parser.py','tests/test_reference.py','tests/test_geometry.py','tests/test_store.py'],ROOT/'backend'))
 
     node_modules=ROOT/'frontend'/'node_modules'
