@@ -247,3 +247,13 @@ def test_mixed_text_and_graphics_adds_nontext_warning_without_corrupting_text_me
     assert page.non_text_content == 'PRESENT'
     assert 'GRAPHICAL_CONTENT_NOT_ANALYZED' in page.reason_codes
     assert any(e.support_state == 'ANALYZABLE' for e in page.elements)
+
+
+def test_same_pdf_bytes_produce_identical_semantic_models():
+    data=make_pdf("Deterministic parser output")
+    first=parse_pdf_bytes(data,uuid4(),"same.pdf")
+    second=parse_pdf_bytes(data,uuid4(),"same.pdf")
+    def semantic(model):
+        return [(page.geometry.display_aspect_ratio,page.text_coverage,page.non_text_content,
+                 [(el.text_preview,el.support_state,el.element_height_ratio,el.reason_codes) for el in page.elements]) for page in model.pages]
+    assert semantic(first)==semantic(second)

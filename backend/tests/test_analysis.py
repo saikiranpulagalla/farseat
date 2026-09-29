@@ -183,3 +183,15 @@ def test_mixed_text_and_graphics_keeps_text_coverage_complete_and_discloses_grap
     details = derive_seat_detail(p, snap, s.seat_id).details
     assert not any("GRAPHICAL_CONTENT_NOT_ANALYZED" in d.reason_codes for d in details)
     assert snap.response.slides[0].non_text_content == "PRESENT"
+
+
+def test_equivalent_distance_units_keep_identical_semantic_result():
+    # Independent unit conversions at the API boundary must not alter BDM state.
+    p=presentation(.02)
+    meters=(3.6576, 12 * .3048, 144 * .0254, 365.76 / 100)
+    states=[]
+    for distance in meters:
+        snap=analyze_presentation(p,request(p.presentation_id,distance))
+        detail=derive_seat_detail(p,snap,"r1-s1").details[0]
+        states.append((snap.response.seats[0].result_state,detail.state,detail.target_height_pct))
+    assert states == [states[0]] * len(states)
