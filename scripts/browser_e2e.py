@@ -156,6 +156,11 @@ def run() -> dict:
             context.close()
             results.append({"name": "desktop-flow-lifecycle-overlay", "status": "PASS"})
 
+            # The production backend deliberately permits only two concurrent
+            # parser subprocesses. Let the reset-triggered cleanup settle before
+            # an independent browser context begins another upload.
+            time.sleep(1.0)
+
             # HiDPI backing store and mobile hit target.
             hidpi = browser.new_context(viewport={"width": 1200, "height": 900}, device_scale_factor=2)
             page2 = hidpi.new_page(); load_sample(page2); analyze_sample(page2); select_rear_seat(page2)
