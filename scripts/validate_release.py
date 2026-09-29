@@ -101,8 +101,11 @@ def main():
 
     node_modules=ROOT/'frontend'/'node_modules'
     if node_modules.exists() and (node_modules/'.bin'/'vitest').exists():
-        suites.append(run('frontend-tests',['npm','test','--','--run'],ROOT/'frontend'))
-        suites.append(run('frontend-build',['npm','run','build'],ROOT/'frontend'))
+        # Windows installs npm as a .cmd shim, which CreateProcess does not
+        # resolve when invoked directly from Python.
+        npm = 'npm.cmd' if sys.platform == 'win32' else 'npm'
+        suites.append(run('frontend-tests',[npm,'test','--','--run'],ROOT/'frontend'))
+        suites.append(run('frontend-build',[npm,'run','build'],ROOT/'frontend'))
     else:
         suites.append({'name':'frontend-tests','exit_code':None,'status':'UNVERIFIED','reason':'complete node_modules absent; CI must run npm ci from pinned lockfile'})
         suites.append({'name':'frontend-build','exit_code':None,'status':'UNVERIFIED','reason':'complete node_modules absent; CI must run npm ci from pinned lockfile'})
