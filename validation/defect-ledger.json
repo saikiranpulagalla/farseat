@@ -154,7 +154,7 @@
       "severity": "P0",
       "status": "CLOSED",
       "summary": "Mixed text and graphics could appear complete/pass while graphics were unanalyzed",
-      "regression_test": "backend/tests/test_analysis.py::test_mixed_text_and_graphics_preserves_partial_aggregate_coverage"
+      "regression_test": "backend/tests/test_analysis.py::test_mixed_text_and_graphics_keeps_text_coverage_complete_and_discloses_graphics"
     },
     {
       "id": "P0-013",
