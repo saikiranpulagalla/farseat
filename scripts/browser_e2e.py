@@ -159,7 +159,7 @@ def run() -> dict:
             # The production backend deliberately permits only two concurrent
             # parser subprocesses. Let the reset-triggered cleanup settle before
             # an independent browser context begins another upload.
-            time.sleep(1.0)
+            time.sleep(3.0)
 
             # HiDPI backing store and mobile hit target.
             hidpi = browser.new_context(viewport={"width": 1200, "height": 900}, device_scale_factor=2)
@@ -172,7 +172,7 @@ def run() -> dict:
             hidpi.close()
             results.append({"name": "hidpi-render", "status": "PASS"})
 
-            time.sleep(1.0)
+            time.sleep(3.0)
 
             mobile = browser.new_context(viewport={"width": 390, "height": 844}, device_scale_factor=1)
             page3 = mobile.new_page(); load_sample(page3); analyze_sample(page3)
