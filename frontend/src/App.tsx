@@ -132,7 +132,7 @@ export default function App(){
  };
 
  const openInspector=(d:SeatElementDetail,e:MouseEvent<HTMLElement>)=>{inspectorOrigin.current=e.currentTarget;setInspect(d);};
- const closeInspector=()=>{setInspect(null);setTimeout(()=>inspectorOrigin.current?.focus(),0);};
+ const closeInspector=()=>{inspectorOrigin.current?.focus();setInspect(null);};
  const field=(label:string,key:keyof RoomConfig,meters=true,stepN=.1)=><label>{label}<input type="number" min={meters?0.001:1} step={stepN} value={meters?Number(display(cfg[key] as number,unit).toFixed(3)):cfg[key]} onChange={e=>update(key,meters?toM(Number(e.target.value),unit):Number(e.target.value))}/></label>;
 
  if(step==='UPLOAD') return <main className="shell hero"><div className="brand">FarSeat</div><h1>See how presentation text geometry changes across seats in a room.</h1><p>Upload a machine-generated PDF, describe the usable display area and seating layout, and FarSeat traces review results back to a modeled seat, slide, and analyzed text element.</p><div className="hero-actions"><label className="upload">Choose PDF<input hidden type="file" accept="application/pdf" onChange={e=>{const f=e.target.files?.[0];if(f)void choose(f);}}/></label><button className="ghost" onClick={()=>void loadSample()}>Try sample classroom</button></div><p className="fine">PDF only · up to 20 MB · temporary in-memory analysis model</p></main>;

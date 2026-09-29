@@ -5,6 +5,7 @@ import json
 import os
 import subprocess
 import time
+import traceback
 import urllib.request
 from datetime import datetime, timezone
 from pathlib import Path
@@ -185,7 +186,12 @@ def main() -> int:
         report = run()
         code = 0
     except Exception as exc:
-        report = {"generated_at": datetime.now(timezone.utc).isoformat(), "status": "FAIL", "error": repr(exc)}
+        report = {
+            "generated_at": datetime.now(timezone.utc).isoformat(),
+            "status": "FAIL",
+            "error": repr(exc),
+            "traceback": traceback.format_exc(),
+        }
         code = 1
     report["source_commit"] = source_commit
     report["source_dirty"] = source_dirty
