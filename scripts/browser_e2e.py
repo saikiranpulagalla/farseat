@@ -172,6 +172,8 @@ def run() -> dict:
             hidpi.close()
             results.append({"name": "hidpi-render", "status": "PASS"})
 
+            time.sleep(1.0)
+
             mobile = browser.new_context(viewport={"width": 390, "height": 844}, device_scale_factor=1)
             page3 = mobile.new_page(); load_sample(page3); analyze_sample(page3)
             seat_box = page3.locator(".seat").first.bounding_box(); assert seat_box
