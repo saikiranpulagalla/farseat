@@ -1,7 +1,5 @@
 name: Recover FarSeat Source
 on:
-  push:
-    branches: [main]
   workflow_dispatch:
 
 permissions:
@@ -14,39 +12,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Reconstruct staged source archive
+      - name: Explain blocked staging payload
         shell: bash
         run: |
           set -euo pipefail
-          test -s ci/full-src.part00.b64
-          test -s ci/full-src.part01.b64
-          test -s ci/full-src.part02.b64
-
-          echo "Chunk hashes:"
-          sha256sum ci/full-src.part*.b64
-
-          cat ci/full-src.part00.b64 ci/full-src.part01.b64 ci/full-src.part02.b64             | tr -d '\r\n\t '             | base64 -d > /tmp/farseat-full-src.tar.gz
-
-          echo "Archive hash:"
-          sha256sum /tmp/farseat-full-src.tar.gz
-
-          gzip -t /tmp/farseat-full-src.tar.gz
-          rm -rf /tmp/farseat-src
-          mkdir -p /tmp/farseat-src
-          tar -xzf /tmp/farseat-full-src.tar.gz -C /tmp/farseat-src
-
-          test -f /tmp/farseat-src/backend/app/main.py
-          test -f /tmp/farseat-src/frontend/package.json
-          test -f /tmp/farseat-src/frontend/src/pdf.ts
-          test -f /tmp/farseat-src/.github/workflows/ci.yml
-
-          echo "Top-level recovered tree:"
-          find /tmp/farseat-src -maxdepth 2 -type f | sort | sed 's#^/tmp/farseat-src/##' | head -200
-
-      - name: Upload recovered source archive
-        uses: actions/upload-artifact@v4
-        with:
-          name: farseat-recovered-source
-          path: /tmp/farseat-full-src.tar.gz
-          if-no-files-found: error
-          retention-days: 7
+          echo "The historical ci/full-src.part*.b64 staging payload is intentionally not auto-published."
+          echo "It is truncated and does not reconstruct a valid gzip archive."
+          echo "Use the qualified v1.0.3 release artifact as the source of truth for final publication."
+          sha256sum ci/full-src.part*.b64 || true
