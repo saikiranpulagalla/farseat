@@ -1,0 +1,258 @@
+{
+  "contract": "EC-1.2",
+  "release_candidate": "1.0.3",
+  "defects": [
+    {
+      "id": "P0-001",
+      "severity": "P0",
+      "status": "CLOSED",
+      "summary": "Subprocess JSON round-trip broke strict PresentationModel reconstruction",
+      "regression_test": "backend/tests/test_parser.py::test_subprocess_runner_round_trips_strict_models"
+    },
+    {
+      "id": "P0-002",
+      "severity": "P0",
+      "status": "CLOSED",
+      "summary": "Visible rotation semantics could corrupt grouping/support decisions",
+      "regression_test": "backend/tests/test_parser.py::test_page_rotation_supports_text_that_is_visually_horizontal"
+    },
+    {
+      "id": "P0-003",
+      "severity": "P0",
+      "status": "CLOSED",
+      "summary": "Transparent text could be treated as visible/analyzable",
+      "regression_test": "backend/tests/test_parser.py::test_transparent_text_fails_closed"
+    },
+    {
+      "id": "P0-004",
+      "severity": "P0",
+      "status": "CLOSED",
+      "summary": "Partially CropBox-clipped text could be analyzed",
+      "regression_test": "backend/tests/test_parser.py::test_partial_crop_clipping_is_not_analyzed"
+    },
+    {
+      "id": "P0-005",
+      "severity": "P0",
+      "status": "CLOSED",
+      "summary": "Analysis store materialized element\u00d7seat detail matrix",
+      "regression_test": "backend/tests/test_factorization.py::test_many_cells_are_not_materialized_in_snapshot"
+    },
+    {
+      "id": "P0-006",
+      "severity": "P0",
+      "status": "CLOSED",
+      "summary": "Seat-detail requests could commit stale results under a newer selection",
+      "regression_test": "frontend/src/requestCoordinator.test.ts"
+    },
+    {
+      "id": "P0-007",
+      "severity": "P0",
+      "status": "CLOSED",
+      "summary": "Release validation omitted production API/factorization/adversarial gates",
+      "regression_test": "scripts/validate_release.py"
+    },
+    {
+      "id": "P0-008",
+      "severity": "P0",
+      "status": "CLOSED",
+      "summary": "Subprocess result transport deadlocked on moderately large valid models",
+      "regression_test": "backend/tests/test_parser.py::test_subprocess_runner_drains_large_valid_model_without_queue_deadlock"
+    },
+    {
+      "id": "P0-009",
+      "severity": "P0",
+      "status": "CLOSED",
+      "summary": "Graphics clipping paths could hide text while FarSeat treated it as visible",
+      "regression_test": "backend/tests/test_parser.py::test_rectangular_graphics_clip_hides_text_and_restores_after_q_q"
+    },
+    {
+      "id": "P0-010",
+      "severity": "P0",
+      "status": "CLOSED",
+      "summary": "RTL and unvalidated shaping could enter the normal LTR measurement pipeline",
+      "regression_test": "backend/tests/test_parser.py::test_rtl_text_fails_closed_instead_of_entering_ltr_measurement"
+    },
+    {
+      "id": "P1-017",
+      "severity": "P1",
+      "status": "CLOSED",
+      "summary": "Finite extreme geometry could underflow active-image dimensions",
+      "regression_test": "backend/tests/test_geometry.py::test_active_image_rejects_finite_underflow_geometry"
+    },
+    {
+      "id": "P1-018",
+      "severity": "P1",
+      "status": "CLOSED",
+      "summary": "Delete/eviction during analysis could resurrect an orphan analysis snapshot",
+      "regression_test": "backend/tests/test_store.py::test_analysis_commit_cannot_resurrect_deleted_parent"
+    },
+    {
+      "id": "P1-019",
+      "severity": "P1",
+      "status": "CLOSED",
+      "summary": "Image-only pages were omitted from presentation-level unknown counts",
+      "regression_test": "backend/tests/test_sample_golden.py::test_sample_reports_image_only_slide_in_presentation_summary"
+    },
+    {
+      "id": "P1-020",
+      "severity": "P1",
+      "status": "CLOSED",
+      "summary": "Invalid-seat summaries mixed NOT_ANALYZED and INVALID_GEOMETRY semantics",
+      "regression_test": "backend/tests/test_analysis.py::test_invalid_seat_uses_invalid_state_not_not_analyzed_count"
+    },
+    {
+      "id": "P1-021",
+      "severity": "P1",
+      "status": "CLOSED",
+      "summary": "Renderer attestation did not compare visible-frame origin",
+      "regression_test": "backend/tests/test_geometry.py::test_geometry_attestation_checks_visible_frame_origin_not_only_size"
+    },
+    {
+      "id": "P1-022",
+      "severity": "P1",
+      "status": "CLOSED",
+      "summary": "Optional-content PDF visibility was not modeled",
+      "regression_test": "backend/tests/test_parser.py::test_optional_content_document_fails_closed"
+    },
+    {
+      "id": "P1-023",
+      "severity": "P1",
+      "status": "CLOSED",
+      "summary": "Global zero-below headline could visually mask total unknown coverage",
+      "regression_test": "frontend/src/logic.test.ts::resultsHeadline"
+    },
+    {
+      "id": "P1-024",
+      "severity": "P1",
+      "status": "CLOSED",
+      "summary": "Split-origin/public deployment had hard-coded localhost CORS/API assumptions",
+      "regression_test": "backend/tests/test_release_contract.py::test_public_deployment_contract"
+    },
+    {
+      "id": "P1-025",
+      "severity": "P1",
+      "status": "CLOSED",
+      "summary": "Frontend dependency resolution lacked a committed reproducible lockfile",
+      "regression_test": "backend/tests/test_release_contract.py::test_frontend_lockfile_is_committed_and_version_pinned"
+    },
+    {
+      "id": "P1-026",
+      "severity": "P1",
+      "status": "CLOSED",
+      "summary": "Concurrent requests could ingest many maximum-sized uploads before parser semaphore",
+      "regression_test": "backend/tests/test_release_contract.py::test_upload_admission_middleware_is_installed_before_route_handling"
+    },
+    {
+      "id": "P0-011",
+      "severity": "P0",
+      "status": "CLOSED",
+      "summary": "Floating-point VR drift could select a lower BDM band and create false PASS",
+      "regression_test": "backend/tests/test_reference.py::test_decimal_division_boundary_snaps_to_conservative_higher_band"
+    },
+    {
+      "id": "P0-012",
+      "severity": "P0",
+      "status": "CLOSED",
+      "summary": "Mixed text and graphics could appear complete/pass while graphics were unanalyzed",
+      "regression_test": "backend/tests/test_analysis.py::test_mixed_text_and_graphics_preserves_partial_aggregate_coverage"
+    },
+    {
+      "id": "P0-013",
+      "severity": "P0",
+      "status": "CLOSED",
+      "summary": "Obsolete PDF F path terminator could bypass pending clipping",
+      "regression_test": "backend/tests/test_parser.py::test_obsolete_F_path_terminator_applies_pending_clip"
+    },
+    {
+      "id": "P0-014",
+      "severity": "P0",
+      "status": "CLOSED",
+      "summary": "Form XObjects could lose parent clipping/transparency and Form BBox clipping",
+      "regression_test": "backend/tests/test_parser.py::test_form_xobject_inherits_parent_clip_and_restores_parent_state"
+    },
+    {
+      "id": "P1-027",
+      "severity": "P1",
+      "status": "CLOSED",
+      "summary": "Decimal seat-grid arithmetic could mark an exact room-boundary seat invalid",
+      "regression_test": "backend/tests/test_geometry.py::test_decimal_grid_exact_room_boundary_remains_valid"
+    },
+    {
+      "id": "P1-028",
+      "severity": "P1",
+      "status": "CLOSED",
+      "summary": "Representation-level EH equality could become false BELOW_TARGET",
+      "regression_test": "backend/tests/test_analysis.py::test_element_height_representation_level_equality_passes_but_materially_lower_does_not"
+    },
+    {
+      "id": "P1-029",
+      "severity": "P1",
+      "status": "CLOSED",
+      "summary": "Seat-detail loading/error UI could contradict the summary with a false zero-result message",
+      "regression_test": "scripts/browser_e2e.py"
+    },
+    {
+      "id": "P1-030",
+      "severity": "P1",
+      "status": "CLOSED",
+      "summary": "Stale upload/analyze errors could overwrite a newer frontend generation",
+      "regression_test": "frontend/src/App.tsx"
+    },
+    {
+      "id": "P1-031",
+      "severity": "P1",
+      "status": "CLOSED",
+      "summary": "Successful backend upload could be orphaned if local PDF manifest setup failed",
+      "regression_test": "frontend/src/App.tsx"
+    },
+    {
+      "id": "P1-032",
+      "severity": "P1",
+      "status": "CLOSED",
+      "summary": "Global store capacity could evict another live capability",
+      "regression_test": "backend/tests/test_store.py::test_store_capacity_rejects_new_presentation_without_evicting_existing"
+    },
+    {
+      "id": "P1-033",
+      "severity": "P1",
+      "status": "CLOSED",
+      "summary": "Upload concurrency limit began after multipart parsing/spooling",
+      "regression_test": "backend/tests/test_release_contract.py::test_upload_admission_middleware_is_installed_before_route_handling"
+    },
+    {
+      "id": "P1-034",
+      "severity": "P1",
+      "status": "CLOSED",
+      "summary": "Sample classroom reused stale room settings",
+      "regression_test": "scripts/browser_e2e.py"
+    },
+    {
+      "id": "P1-035",
+      "severity": "P1",
+      "status": "CLOSED",
+      "summary": "PDF inspector measured its constrained child and could self-lock near 320px",
+      "regression_test": "scripts/browser_e2e.py"
+    },
+    {
+      "id": "P1-036",
+      "severity": "P1",
+      "status": "CLOSED",
+      "summary": "Browser overlay/HiDPI/focus/mobile gates were not executable release evidence",
+      "regression_test": "scripts/browser_e2e.py"
+    },
+    {
+      "id": "P1-037",
+      "severity": "P1",
+      "status": "CLOSED",
+      "summary": "Browser release gate hard-coded /usr/bin/chromium instead of the Playwright-managed browser installed by CI",
+      "regression_test": "backend/tests/test_release_contract.py::test_browser_gate_uses_playwright_managed_chromium_by_default"
+    },
+    {
+      "id": "P0-015",
+      "severity": "P0",
+      "status": "CLOSED",
+      "summary": "Release validator could accept stale browser PASS evidence generated from a different source commit",
+      "regression_test": "backend/tests/test_release_contract.py::test_release_validator_rejects_browser_evidence_from_another_commit"
+    }
+  ]
+}

@@ -1,0 +1,19 @@
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    environment:
+      FARSEAT_ALLOWED_ORIGINS: http://localhost:8080
+      FARSEAT_MAX_CONCURRENT_UPLOADS: "2"
+    expose:
+      - "8000"
+
+  web:
+    build:
+      context: .
+      dockerfile: deploy/frontend.Dockerfile
+    depends_on:
+      - backend
+    ports:
+      - "8080:80"

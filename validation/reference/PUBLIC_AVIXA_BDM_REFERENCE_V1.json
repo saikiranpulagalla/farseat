@@ -1,0 +1,22 @@
+{
+  "profile": "PUBLIC_AVIXA_BDM_REFERENCE_V1",
+  "source_owner": "AVIXA",
+  "source_kind": "public BDM reference table",
+  "implementation_claim": "FarSeat uses the public table as a reference profile only.",
+  "certification_claim": false,
+  "boundary_policy": "At shared boundaries FarSeat intentionally selects the higher target.",
+  "range": {"minimum_viewing_ratio": 0.8, "maximum_viewing_ratio": 10.0},
+  "bands": [
+    {"vr_min": 0.8, "vr_max_exclusive": 1.0, "element_height_percent": 0.5},
+    {"vr_min": 1.0, "vr_max_exclusive": 1.5, "element_height_percent": 0.75},
+    {"vr_min": 1.5, "vr_max_exclusive": 2.0, "element_height_percent": 1.0},
+    {"vr_min": 2.0, "vr_max_exclusive": 3.0, "element_height_percent": 1.5},
+    {"vr_min": 3.0, "vr_max_exclusive": 4.0, "element_height_percent": 2.0},
+    {"vr_min": 4.0, "vr_max_exclusive": 5.0, "element_height_percent": 2.5},
+    {"vr_min": 5.0, "vr_max_exclusive": 6.0, "element_height_percent": 3.0},
+    {"vr_min": 6.0, "vr_max_exclusive": 7.0, "element_height_percent": 3.5},
+    {"vr_min": 7.0, "vr_max_exclusive": 8.0, "element_height_percent": 4.0},
+    {"vr_min": 8.0, "vr_max_exclusive": 9.0, "element_height_percent": 4.5},
+    {"vr_min": 9.0, "vr_max_inclusive": 10.0, "element_height_percent": 5.0}
+  ]
+}

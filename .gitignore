@@ -1,0 +1,26 @@
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.coverage
+htmlcov/
+.venv/
+venv/
+
+# Node
+node_modules/
+dist/
+.vite/
+
+# IDE / OS
+.DS_Store
+.vscode/
+.idea/
+
+# Local env / generated validation output
+.env
+validation/reports/
+*.log
+
+# TypeScript build metadata
+*.tsbuildinfo
