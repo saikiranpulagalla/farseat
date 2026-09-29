@@ -11,13 +11,37 @@ export function PdfInspector({url,detail,onClose}:{url:string;detail:SeatElement
  useEffect(()=>{ let dead=false; let d:PDFDocumentProxy|null=null; setRenderError(''); openPdf(url).then(x=>{if(dead){void x.destroy();return;} d=x;setDoc(x);}).catch(()=>{if(!dead)setRenderError('Could not open this slide for visual inspection.');}); return()=>{dead=true;taskRef.current?.cancel();if(d)void d.destroy();};},[url]);
  useEffect(()=>{
    if(!doc||!canvasRef.current||!stageRef.current)return; let cancelled=false;
+   let renderGeneration=0;
+   let requestedWidth=0;
+   let renderQueue:Promise<void>=Promise.resolve();
    const run=async()=>{
-     taskRef.current?.cancel(); setRenderError('');
      const available=stageRef.current!.clientWidth; const width=Math.max(240,Math.min(900,available));
-     try{
-       const r=await renderPage(doc,detail.page_number,canvasRef.current!,width); taskRef.current=r.task;
-       await r.task.promise;if(!cancelled)setSize({width:r.width,height:r.height});
-     }catch(e:any){if(e?.name!=='RenderingCancelledException'&&!cancelled)setRenderError('Could not render this slide. Try another element or reopen the inspector.');}
+     // ResizeObserver fires once when observation starts. Do not cancel a render
+     // already targeting this exact CSS width, or it can never publish its size.
+     if(width===requestedWidth&&taskRef.current)return;
+     requestedWidth=width;
+     const generation=++renderGeneration;
+     const previousRun=renderQueue;
+     renderQueue=(async()=>{
+       await previousRun;
+       if(cancelled||generation!==renderGeneration)return;
+       const previous=taskRef.current;
+       if(previous){
+         previous.cancel();
+         try{await previous.promise;}catch{/* cancellation is expected */}
+       }
+       if(cancelled||generation!==renderGeneration)return;
+       setRenderError('');
+       // Publish the measured stage width before PDF.js completes. Otherwise the
+       // wrapper remains 1px wide, its canvas is hidden by max-width, and a resize
+       // observer can repeatedly invalidate the render that would size it.
+       setSize(previousSize=>previousSize.width===width?previousSize:{width,height:previousSize.height});
+       try{
+         const r=await renderPage(doc,detail.page_number,canvasRef.current!,width); taskRef.current=r.task;
+         await r.task.promise;if(!cancelled&&generation===renderGeneration)setSize({width:r.width,height:r.height});
+       }catch(e:any){if(e?.name!=='RenderingCancelledException'&&!cancelled&&generation===renderGeneration)setRenderError('Could not render this slide. Try another element or reopen the inspector.');}
+     })();
+     await renderQueue;
    };
    void run(); const ro=new ResizeObserver(()=>void run());ro.observe(stageRef.current);return()=>{cancelled=true;ro.disconnect();taskRef.current?.cancel();};
  },[doc,detail.page_number]);

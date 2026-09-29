@@ -61,11 +61,19 @@ def analyze_sample(page) -> None:
 def select_rear_seat(page, *, delayed: bool = False) -> None:
     if delayed:
         def handler(route):
-            time.sleep(0.35)
+            # Keep the request pending long enough to prove that the UI does not
+            # replace a newer selection with an old/empty detail state.
+            time.sleep(1.2)
             route.continue_()
         page.route("**/api/analyses/*/seats/*", handler)
     seat = page.locator(".seat").last
-    seat.click()
+    # A synchronous route handler blocks Playwright's normal click completion.
+    # Dispatching the DOM click lets this test observe the real intermediate loading
+    # state while the intercepted detail response is intentionally delayed.
+    if delayed:
+        seat.evaluate("el => setTimeout(() => el.click(), 0)")
+    else:
+        seat.click()
     expect(page.get_by_role("heading", name="Row 5 · Seat 6")).to_be_visible()
     if delayed:
         expect(page.get_by_text("Loading seat details…")).to_be_visible()
