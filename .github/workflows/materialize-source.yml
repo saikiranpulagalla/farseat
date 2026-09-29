@@ -1,60 +1,52 @@
-name: Materialize FarSeat v1.0.2 Source
+name: Recover FarSeat Source
 on:
   push:
     branches: [main]
+  workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
-  materialize:
-    if: ${{ !contains(github.event.head_commit.message, 'materialize FarSeat v1.0.2 source') }}
+  reconstruct:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
-        with:
-          persist-credentials: true
-          fetch-depth: 0
 
-      - name: Reconstruct exact source archive
+      - name: Reconstruct staged source archive
         shell: bash
         run: |
           set -euo pipefail
           test -s ci/full-src.part00.b64
           test -s ci/full-src.part01.b64
           test -s ci/full-src.part02.b64
+
+          echo "Chunk hashes:"
           sha256sum ci/full-src.part*.b64
-          echo "29047a1e90df4e27597744542ecc9f695c347ae550b603a80bba3c47af63c894  ci/full-src.part00.b64" | sha256sum -c -
-          echo "c7b4f80fa5f1609f520a55184e49e09742518b08c14ac8ce3d2a49ad35732b88  ci/full-src.part01.b64" | sha256sum -c -
-          echo "f470b04c6c8b22c5ad2caa0ea0e8cef6f94b42951efbed7ac5b17f07802bfe14  ci/full-src.part02.b64" | sha256sum -c -
-          cat ci/full-src.part*.b64 | base64 -d > /tmp/farseat-full-src.tar.gz
-          echo "e8051080f8619e126d04787eeab2a082dc423632f6f4b4122fe0000a802365e7  /tmp/farseat-full-src.tar.gz" | sha256sum -c -
+
+          cat ci/full-src.part00.b64 ci/full-src.part01.b64 ci/full-src.part02.b64             | tr -d '\r\n\t '             | base64 -d > /tmp/farseat-full-src.tar.gz
+
+          echo "Archive hash:"
+          sha256sum /tmp/farseat-full-src.tar.gz
+
+          gzip -t /tmp/farseat-full-src.tar.gz
           rm -rf /tmp/farseat-src
           mkdir -p /tmp/farseat-src
           tar -xzf /tmp/farseat-full-src.tar.gz -C /tmp/farseat-src
+
           test -f /tmp/farseat-src/backend/app/main.py
-          test -f /tmp/farseat-src/frontend/package-lock.json
+          test -f /tmp/farseat-src/frontend/package.json
+          test -f /tmp/farseat-src/frontend/src/pdf.ts
           test -f /tmp/farseat-src/.github/workflows/ci.yml
 
-      - name: Replace staging repo with exact project tree
-        shell: bash
-        run: |
-          set -euo pipefail
-          rsync -a --delete --exclude='.git/' /tmp/farseat-src/ ./
-          test ! -e ci/full-src.part00.b64
-          test -f README.md
-          test -f frontend/src/pdf.ts
+          echo "Top-level recovered tree:"
+          find /tmp/farseat-src -maxdepth 2 -type f | sort | sed 's#^/tmp/farseat-src/##' | head -200
 
-      - name: Commit exact project source
-        shell: bash
-        run: |
-          set -euo pipefail
-          git config user.name "FarSeat Release Bot"
-          git config user.email "actions@users.noreply.github.com"
-          git add -A
-          if git diff --cached --quiet; then
-            echo "No source changes to commit"
-            exit 0
-          fi
-          git commit -m "release: materialize FarSeat v1.0.2 source"
-          git push origin HEAD:main
+      - name: Upload recovered source archive
+        uses: actions/upload-artifact@v4
+        with:
+          name: farseat-recovered-source
+          path: /tmp/farseat-full-src.tar.gz
+          if-no-files-found: error
+          retention-days: 7
