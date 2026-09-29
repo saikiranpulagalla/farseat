@@ -4,7 +4,7 @@ from uuid import uuid4
 import pytest
 from reportlab.pdfgen import canvas
 from pypdf import PdfReader, PdfWriter
-from pypdf.generic import DictionaryObject, NameObject
+from pypdf.generic import ArrayObject, DictionaryObject, FloatObject, NameObject
 
 from app.parser import NormalizedChar, ExtractedChar, SubprocessParserRunner, _dedupe, _line_and_segment, _mark_combining_uncertainty, parse_pdf_bytes
 from app.models import NormalizedBBox
@@ -215,6 +215,82 @@ def test_form_xobject_inherits_parent_clip_and_restores_parent_state():
     model=parse_pdf_bytes(buf.getvalue(),uuid4(),'form-parent-clip.pdf')
     texts=[e.text_preview for e in model.pages[0].elements]
     assert texts == ['VISIBLE AFTER FORM']
+
+
+def test_form_xobject_inside_parent_clip_remains_analyzable():
+    buf=BytesIO(); c=canvas.Canvas(buf,pagesize=(400,300))
+    c.beginForm('FORM_INSIDE',0,0,300,250); c.drawString(60,100,'FORM INSIDE'); c.endForm()
+    c.saveState(); path=c.beginPath(); path.rect(40,80,120,60); c.clipPath(path,stroke=0,fill=0); c.doForm('FORM_INSIDE'); c.restoreState(); c.save()
+    model=parse_pdf_bytes(buf.getvalue(),uuid4(),'form-inside.pdf')
+    element=next(e for e in model.pages[0].elements if e.text_preview=='FORM INSIDE')
+    assert element.support_state=='ANALYZABLE'
+    assert element.visibility_state=='VISIBLE'
+    assert element.measurement_confidence=='SUPPORTED'
+    assert element.logical_bbox.x0 < element.logical_bbox.x1
+    assert element.logical_bbox.y0 < element.logical_bbox.y1
+
+
+def test_partially_parent_clipped_form_text_is_not_analyzed():
+    buf=BytesIO(); c=canvas.Canvas(buf,pagesize=(400,300))
+    c.beginForm('FORM_PARTIAL',0,0,300,250); c.setFont('Helvetica',24); c.drawString(50,100,'PARTIAL'); c.endForm()
+    c.saveState(); path=c.beginPath(); path.rect(55,80,200,60); c.clipPath(path,stroke=0,fill=0); c.doForm('FORM_PARTIAL'); c.restoreState(); c.save()
+    model=parse_pdf_bytes(buf.getvalue(),uuid4(),'form-partial.pdf')
+    assert model.pages[0].elements
+    assert all(e.support_state=='NOT_ANALYZED' for e in model.pages[0].elements)
+    assert any('CLIPPED_TEXT_GEOMETRY' in e.reason_codes for e in model.pages[0].elements)
+
+
+def test_sibling_forms_do_not_leak_parent_clip_state():
+    buf=BytesIO(); c=canvas.Canvas(buf,pagesize=(400,300))
+    c.beginForm('FORM_A',0,0,300,250); c.drawString(100,200,'FORM A HIDDEN'); c.endForm()
+    c.beginForm('FORM_B',0,0,300,250); c.drawString(40,120,'FORM B VISIBLE'); c.endForm()
+    c.saveState(); path=c.beginPath(); path.rect(0,0,20,20); c.clipPath(path,stroke=0,fill=0); c.doForm('FORM_A'); c.restoreState(); c.doForm('FORM_B'); c.save()
+    model=parse_pdf_bytes(buf.getvalue(),uuid4(),'form-siblings.pdf')
+    texts=[e.text_preview for e in model.pages[0].elements]
+    assert texts==['FORM B VISIBLE']
+    assert model.pages[0].elements[0].support_state=='ANALYZABLE'
+
+
+def test_ordinary_form_text_remains_analyzable_without_clipping():
+    buf=BytesIO(); c=canvas.Canvas(buf,pagesize=(400,300))
+    c.beginForm('FORM_NORMAL',0,0,300,250); c.drawString(40,120,'ORDINARY FORM'); c.endForm(); c.doForm('FORM_NORMAL'); c.save()
+    model=parse_pdf_bytes(buf.getvalue(),uuid4(),'form-normal.pdf')
+    assert [(e.text_preview,e.support_state) for e in model.pages[0].elements]==[('ORDINARY FORM','ANALYZABLE')]
+
+
+def test_form_local_rectangular_clip_excludes_form_text_without_leaking_to_page():
+    buf=BytesIO(); c=canvas.Canvas(buf,pagesize=(400,300))
+    c.beginForm('FORM_CHILD_CLIP',0,0,300,250)
+    path=c.beginPath(); path.rect(0,0,20,20); c.clipPath(path,stroke=0,fill=0); c.drawString(100,200,'CHILD HIDDEN'); c.endForm()
+    c.doForm('FORM_CHILD_CLIP'); c.drawString(40,120,'PAGE VISIBLE'); c.save()
+    model=parse_pdf_bytes(buf.getvalue(),uuid4(),'form-child-clip.pdf')
+    assert [(e.text_preview,e.support_state) for e in model.pages[0].elements]==[('PAGE VISIBLE','ANALYZABLE')]
+
+
+def test_form_matrix_translation_uses_page_frame_for_parent_clip():
+    # Independent oracle: local text at (10, 10) with /Matrix [1 0 0 1 100 100]
+    # is painted near (110, 110) in page user space, inside this parent clip.
+    buf=BytesIO(); c=canvas.Canvas(buf,pagesize=(400,300))
+    c.beginForm('FORM_MATRIX',0,0,300,250); c.drawString(10,10,'MATRIX VISIBLE'); c.endForm()
+    c.saveState(); path=c.beginPath(); path.rect(95,95,150,50); c.clipPath(path,stroke=0,fill=0); c.doForm('FORM_MATRIX'); c.restoreState(); c.save()
+    reader=PdfReader(BytesIO(buf.getvalue())); page=reader.pages[0]
+    form=next(iter(page['/Resources']['/XObject'].values())).get_object()
+    form[NameObject('/Matrix')]=ArrayObject([FloatObject(1),FloatObject(0),FloatObject(0),FloatObject(1),FloatObject(100),FloatObject(100)])
+    out=BytesIO(); writer=PdfWriter(); writer.add_page(page); writer.write(out)
+    model=parse_pdf_bytes(out.getvalue(),uuid4(),'form-matrix.pdf')
+    element=next(e for e in model.pages[0].elements if e.text_preview=='MATRIX VISIBLE')
+    assert element.support_state=='ANALYZABLE'
+    assert .24 < element.logical_bbox.x0 < .31
+    assert .55 < element.logical_bbox.y0 < .65
+
+
+def test_nested_form_inherits_page_clip_across_dup_levels():
+    buf=BytesIO(); c=canvas.Canvas(buf,pagesize=(400,300))
+    c.beginForm('FORM_B',0,0,300,250); c.drawString(100,200,'NESTED HIDDEN'); c.endForm()
+    c.beginForm('FORM_A',0,0,300,250); c.doForm('FORM_B'); c.endForm()
+    c.saveState(); path=c.beginPath(); path.rect(0,0,20,20); c.clipPath(path,stroke=0,fill=0); c.doForm('FORM_A'); c.restoreState(); c.drawString(40,120,'AFTER NESTED'); c.save()
+    model=parse_pdf_bytes(buf.getvalue(),uuid4(),'nested-form.pdf')
+    assert [(e.text_preview,e.support_state) for e in model.pages[0].elements]==[('AFTER NESTED','ANALYZABLE')]
 
 
 def test_form_xobject_inherits_parent_transparency():
