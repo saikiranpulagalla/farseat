@@ -56,7 +56,8 @@
       "severity": "P0",
       "status": "CLOSED",
       "summary": "Subprocess result transport deadlocked on moderately large valid models",
-      "regression_test": "backend/tests/test_parser.py::test_subprocess_runner_drains_large_valid_model_without_queue_deadlock"
+      "regression_test": "backend/tests/test_resource_release.py::test_resource_release_gate_drains_large_controlled_child_model",
+      "evidence_note": "Legacy timing-coupled PDF transport regression was retired after its Pipe-drain invariant was replaced by the deterministic controlled large-model subprocess transport regression."
     },
     {
       "id": "P0-009",
