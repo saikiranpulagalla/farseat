@@ -1136,9 +1136,10 @@ def _worker(data: bytes, presentation_id: str, filename: str, memory_limit_bytes
 
 
 class SubprocessParserRunner:
-    def __init__(self, timeout_seconds: float = 20.0, memory_limit_bytes: int | None = 1024 * 1024 * 1024):
+    def __init__(self, timeout_seconds: float = 20.0, memory_limit_bytes: int | None = 1024 * 1024 * 1024, worker_target=None):
         self.timeout_seconds = timeout_seconds
         self.memory_limit_bytes = memory_limit_bytes
+        self._worker_target = worker_target or _worker
 
     def parse(self, data: bytes, presentation_id: UUID, filename: str) -> PresentationModel:
         """Parse in a spawned child while draining its result concurrently.
@@ -1151,7 +1152,7 @@ class SubprocessParserRunner:
         ctx = mp.get_context("spawn")
         parent, child = ctx.Pipe(duplex=False)
         proc = ctx.Process(
-            target=_worker,
+            target=self._worker_target,
             args=(data, str(presentation_id), filename, self.memory_limit_bytes, child),
         )
         deadline = time.monotonic() + self.timeout_seconds

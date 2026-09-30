@@ -5,6 +5,7 @@ import json
 import platform
 import subprocess
 import sys
+import xml.etree.ElementTree as ET
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -26,6 +27,45 @@ REQUIRED=[
 def run(name,cmd,cwd):
     p=subprocess.run(cmd,cwd=cwd,text=True,capture_output=True)
     return {'name':name,'command':' '.join(cmd),'exit_code':p.returncode,'status':'PASS' if p.returncode==0 else 'FAIL','stdout':p.stdout[-12000:],'stderr':p.stderr[-12000:]}
+
+
+def run_pytest(name, cmd, cwd, timeout_seconds=120):
+    """Run a required pytest suite with machine-readable completion evidence.
+
+    The terminal footer is deliberately not used as a release signal: Windows
+    process tests can finish after an interactive host has stopped streaming
+    output.  A zero exit status and a complete JUnit report must agree.
+    """
+    junit_path = REPORT_DIR / f'{name}.junit.xml'
+    command = [*cmd, f'--junitxml={junit_path}']
+    try:
+        p = subprocess.run(command, cwd=cwd, text=True, capture_output=True, timeout=timeout_seconds)
+    except subprocess.TimeoutExpired as exc:
+        return {
+            'name': name, 'command': ' '.join(command), 'exit_code': None,
+            'status': 'FAIL', 'reason': f'PYTEST_HARNESS_TIMEOUT after {timeout_seconds}s',
+            'stdout': (exc.stdout or '')[-12000:], 'stderr': (exc.stderr or '')[-12000:],
+            'junit': str(junit_path.relative_to(ROOT)),
+        }
+
+    result = {
+        'name': name, 'command': ' '.join(command), 'exit_code': p.returncode,
+        'stdout': p.stdout[-12000:], 'stderr': p.stderr[-12000:],
+        'junit': str(junit_path.relative_to(ROOT)),
+    }
+    try:
+        root = ET.parse(junit_path).getroot()
+        suites = [root] if root.tag == 'testsuite' else root.findall('.//testsuite')
+        counts = {key: sum(int(suite.attrib.get(key, '0')) for suite in suites) for key in ('tests', 'failures', 'errors', 'skipped')}
+    except (ET.ParseError, OSError, ValueError) as exc:
+        result.update({'status': 'FAIL', 'reason': f'JUnit report unavailable or invalid: {exc}'})
+        return result
+    result.update(counts)
+    valid = p.returncode == 0 and counts['tests'] > 0 and counts['failures'] == 0 and counts['errors'] == 0 and counts['skipped'] == 0
+    result['status'] = 'PASS' if valid else 'FAIL'
+    if not valid:
+        result['reason'] = 'pytest exit status and JUnit counts must show at least one test with no failures, errors, or skips'
+    return result
 
 
 def git_identity():
@@ -96,9 +136,9 @@ def main():
     suites=[{'name':'required-files','exit_code':0 if not missing else 1,'status':'PASS' if not missing else 'FAIL','missing':missing}]
     suites.append(defect_gate())
     suites.append(run('python-compile',[sys.executable,'-m','compileall','-q','app','tests'],ROOT/'backend'))
-    suites.append(run('backend-tests',[sys.executable,'-m','pytest','-q'],ROOT/'backend'))
-    suites.append(run('resource-release-gate',[sys.executable,'-m','pytest','-q','-m','resource','tests/test_resource_release.py'],ROOT/'backend'))
-    suites.append(run('production-api-gate',[sys.executable,'-m','pytest','-q','tests/test_api_integration.py','tests/test_factorization.py','tests/test_parser.py','tests/test_reference.py','tests/test_geometry.py','tests/test_store.py'],ROOT/'backend'))
+    suites.append(run_pytest('backend-tests',[sys.executable,'-m','pytest','-q'],ROOT/'backend'))
+    suites.append(run_pytest('resource-release-gate',[sys.executable,'-m','pytest','-q','-m','resource','tests/test_resource_release.py'],ROOT/'backend'))
+    suites.append(run_pytest('production-api-gate',[sys.executable,'-m','pytest','-q','tests/test_api_integration.py','tests/test_factorization.py','tests/test_parser.py','tests/test_reference.py','tests/test_geometry.py','tests/test_store.py'],ROOT/'backend'))
 
     node_modules=ROOT/'frontend'/'node_modules'
     if node_modules.exists() and (node_modules/'.bin'/'vitest').exists():

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from io import BytesIO
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import pytest
 from PIL import Image
@@ -9,6 +9,8 @@ from reportlab.lib.utils import ImageReader
 from reportlab.pdfgen import canvas
 
 from app.parser import ParseFailure, SubprocessParserRunner
+from app.models import CanonicalPageGeometry, ElementMetric, MeasurementConfidence, NonTextContentState, NormalizedBBox, PageAnalysisModel, PresentationModel, TextCoverage, TextVisibility
+import time
 
 
 LIMIT = 20 * 1024 * 1024
@@ -17,9 +19,11 @@ LIMIT = 20 * 1024 * 1024
 def _ordinary_pdf() -> bytes:
     buf = BytesIO()
     pdf = canvas.Canvas(buf, pagesize=(1280, 720))
-    pdf.setFont("Helvetica-Bold", 28)
-    pdf.drawString(60, 660, "FarSeat resource regression")
-    pdf.drawString(60, 620, "Ordinary machine-generated presentation text")
+    for page in range(6):
+        pdf.setFont("Helvetica-Bold", 28)
+        pdf.drawString(60, 660, f"FarSeat resource regression {page + 1}")
+        pdf.drawString(60, 620, "Ordinary machine-generated presentation text")
+        pdf.showPage()
     pdf.save()
     return buf.getvalue()
 
@@ -51,6 +55,18 @@ def _newline_free_tail(data: bytes) -> bytes:
     return data + b"\n%" + b"x" * (LIMIT - len(data) - 2)
 
 
+def _sleeping_worker(data, presentation_id, filename, memory_limit_bytes, out):
+    time.sleep(2)
+
+
+def _large_model_worker(data, presentation_id, filename, memory_limit_bytes, out):
+    geometry = CanonicalPageGeometry(page_number=1, visible_box_source="MEDIABOX", page_rotation_deg=0, display_width_units=16, display_height_units=9, display_aspect_ratio=16 / 9)
+    elements = tuple(ElementMetric(slide_id="s", element_id=f"e{i}", logical_bbox=NormalizedBBox(x0=.1, y0=.1, x1=.2, y1=.2), text_preview="x" * 120, support_state="ANALYZABLE", visibility_state=TextVisibility.VISIBLE, measurement_confidence=MeasurementConfidence.SUPPORTED, measurement_method="TEST", element_height_ratio=.1) for i in range(8_000))
+    model = PresentationModel(presentation_id=UUID(presentation_id), filename=filename, pages=(PageAnalysisModel(page_number=1, geometry=geometry, text_coverage=TextCoverage.COMPLETE, non_text_content=NonTextContentState.ABSENT, elements=elements),), page_count=1, analyzable_element_count=len(elements), unsupported_element_count=0)
+    out.send_bytes(b"O" + model.model_dump_json().encode())
+    out.close()
+
+
 @pytest.mark.resource
 def test_resource_release_gate_near_limit_and_adversarial_recovery():
     runner = SubprocessParserRunner()
@@ -60,13 +76,32 @@ def test_resource_release_gate_near_limit_and_adversarial_recovery():
     assert model.analyzable_element_count >= 5
 
     adversarial = _newline_free_tail(_ordinary_pdf())
-    with pytest.raises(ParseFailure, match="PARSER_RESOURCE_LIMIT"):
-        runner.parse(adversarial, uuid4(), "newline-free-trailing-tail.pdf")
+    started = time.monotonic()
+    try:
+        parsed = runner.parse(adversarial, uuid4(), "newline-free-trailing-tail.pdf")
+        assert parsed.page_count == 6
+    except ParseFailure as exc:
+        assert exc.code == "PARSER_RESOURCE_LIMIT"
+    assert time.monotonic() - started < 24
 
     # A terminated child must not poison subsequent parsing or leave a partial model.
     recovered = runner.parse(_ordinary_pdf(), uuid4(), "recovery.pdf")
-    assert recovered.page_count == 1
+    assert recovered.page_count == 6
     assert recovered.analyzable_element_count >= 1
+
+
+@pytest.mark.resource
+def test_resource_release_gate_terminates_controlled_child_and_recovers():
+    runner = SubprocessParserRunner(timeout_seconds=.3, worker_target=_sleeping_worker)
+    with pytest.raises(ParseFailure, match="PARSER_RESOURCE_LIMIT"):
+        runner.parse(b"x", uuid4(), "timeout.pdf")
+    assert SubprocessParserRunner().parse(_ordinary_pdf(), uuid4(), "recovery.pdf").page_count == 6
+
+
+@pytest.mark.resource
+def test_resource_release_gate_drains_large_controlled_child_model():
+    model = SubprocessParserRunner(timeout_seconds=15, worker_target=_large_model_worker).parse(b"x", uuid4(), "transport.pdf")
+    assert model.analyzable_element_count == 8_000
 
 
 @pytest.mark.resource
