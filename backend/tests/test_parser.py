@@ -174,18 +174,6 @@ def test_optional_content_document_fails_closed():
     assert any("UNSUPPORTED_OPTIONAL_CONTENT" in e.reason_codes for e in model.pages[0].elements)
 
 
-def test_subprocess_runner_drains_large_valid_model_without_queue_deadlock():
-    buf=BytesIO(); c=canvas.Canvas(buf,pagesize=(600,800))
-    for page_no in range(20):
-        for line in range(30):
-            c.drawString(40,760-line*22,f"Page {page_no+1} line {line+1} ordinary supported text")
-        c.showPage()
-    c.save()
-    model=SubprocessParserRunner(timeout_seconds=10,memory_limit_bytes=None).parse(buf.getvalue(),uuid4(),"medium.pdf")
-    assert model.page_count==20
-    assert model.analyzable_element_count>=600
-
-
 def _rewrite_first_page_stream(raw: bytes, old: bytes, new: bytes) -> bytes:
     reader=PdfReader(BytesIO(raw)); page=reader.pages[0]
     data=page.get_contents().get_data()

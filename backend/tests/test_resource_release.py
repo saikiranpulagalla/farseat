@@ -102,6 +102,7 @@ def test_resource_release_gate_terminates_controlled_child_and_recovers():
 def test_resource_release_gate_drains_large_controlled_child_model():
     model = SubprocessParserRunner(timeout_seconds=15, worker_target=_large_model_worker).parse(b"x", uuid4(), "transport.pdf")
     assert model.analyzable_element_count == 8_000
+    assert len(model.model_dump_json().encode()) > 1_000_000
 
 
 @pytest.mark.resource
