@@ -1,63 +1,92 @@
 name: FarSeat CI
+
 on:
   push:
     branches: [main]
   pull_request:
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   validate:
     runs-on: ubuntu-latest
+
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
         with:
           python-version: '3.12'
           cache: 'pip'
+
       - name: Install backend and validation tools
         run: python -m pip install -e 'backend[dev]'
+
       - name: Backend tests
         run: PYTHONPATH=backend pytest -q backend/tests
-      - uses: actions/setup-node@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
         with:
           node-version: '22'
           cache: 'npm'
           cache-dependency-path: frontend/package-lock.json
+
       - name: Install frontend
         working-directory: frontend
         run: npm ci --ignore-scripts
+
       - name: Frontend tests
         working-directory: frontend
         run: npm test -- --run
+
       - name: Frontend build
         working-directory: frontend
         run: npm run build
-      - name: Install Chromium for browser release gate
+
+      - name: Install Chromium for release validation
         run: python -m playwright install --with-deps chromium
-      - name: Browser end-to-end gate
+
+      - name: Verify clean source before release validation
         shell: bash
         run: |
           set -euo pipefail
-          PYTHONPATH=backend uvicorn app.main:app --host 127.0.0.1 --port 8000 >/tmp/farseat-backend.log 2>&1 &
-          BACK_PID=$!
-          (cd frontend && npm run dev -- --host 127.0.0.1 --port 5173 >/tmp/farseat-frontend.log 2>&1) &
-          FRONT_PID=$!
-          cleanup() { kill "$BACK_PID" "$FRONT_PID" 2>/dev/null || true; }
-          trap cleanup EXIT
-          python scripts/browser_e2e.py
-      - name: Release validation
-        shell: bash
-        run: |
-          echo "===== GIT STATUS BEFORE RELEASE VALIDATION ====="
+
+          echo "===== SOURCE STATUS ====="
           git status --short --untracked-files=all
-          echo "================================================"
-          python scripts/validate_release.py
+
+          if [ -n "$(git status --porcelain)" ]; then
+            echo "ERROR: repository became dirty before release validation"
+            git diff --stat
+            git diff
+            exit 1
+          fi
+
+          echo "Source tree is clean."
+
+      - name: Release validation
+        run: python scripts/validate_release.py
+
       - name: Package ZIP
         if: success()
+        shell: bash
         run: |
+          set -euo pipefail
+
           mkdir -p release
-          zip -r release/FarSeat-v1.0.3.zip . -x '.git/*' 'frontend/node_modules/*' 'backend/.pytest_cache/*' 'release/*'
-      - uses: actions/upload-artifact@v4
+
+          zip -r release/FarSeat-v1.0.3.zip . \
+            -x '.git/*' \
+               'frontend/node_modules/*' \
+               'backend/.pytest_cache/*' \
+               'release/*'
+
+      - name: Upload release artifact
+        uses: actions/upload-artifact@v4
         if: success()
         with:
           name: FarSeat-v1.0.3
