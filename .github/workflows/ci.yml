@@ -46,7 +46,12 @@ jobs:
           trap cleanup EXIT
           python scripts/browser_e2e.py
       - name: Release validation
-        run: python scripts/validate_release.py
+        shell: bash
+        run: |
+          echo "===== GIT STATUS BEFORE RELEASE VALIDATION ====="
+          git status --short --untracked-files=all
+          echo "================================================"
+          python scripts/validate_release.py
       - name: Package ZIP
         if: success()
         run: |
