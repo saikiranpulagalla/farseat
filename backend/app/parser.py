@@ -531,6 +531,31 @@ def _visible_box(page) -> tuple[float, float, float, float, str]:
     return x0, y0, x1, y1, source
 
 
+def _renderer_visible_box(page) -> tuple[float, float, float, float]:
+    """Return PDF.js ``page.view`` coordinates, before page rotation.
+
+    pdfplumber presents ``mediabox``/``cropbox`` in its extraction frame, which
+    is already rotated for a page with ``/Rotate``.  That frame is correct for
+    LTChar normalization, but it is not the source-coordinate frame reported
+    by PDF.js in a renderer manifest.  Keep the two frames separate so an
+    otherwise valid rotated page can be attested without weakening geometry
+    checks.
+    """
+    attrs = dict_value(page.page_obj.attrs)
+    media = tuple(float(x) for x in list_value(resolve1(attrs.get("MediaBox"))))
+    crop_value = attrs.get("CropBox")
+    crop = tuple(float(x) for x in list_value(resolve1(crop_value))) if crop_value is not None else media
+    if len(media) != 4 or len(crop) != 4:
+        raise ParseFailure("ZERO_AREA_VISIBLE_FRAME")
+    mx0, my0, mx1, my1 = media
+    cx0, cy0, cx1, cy1 = crop
+    x0, y0 = max(mx0, cx0), max(my0, cy0)
+    x1, y1 = min(mx1, cx1), min(my1, cy1)
+    if not all(math.isfinite(v) for v in (x0, y0, x1, y1)) or x1 <= x0 or y1 <= y0:
+        raise ParseFailure("ZERO_AREA_VISIBLE_FRAME")
+    return x0, y0, x1, y1
+
+
 def _fallback_geometry(page, reason: str) -> CanonicalPageGeometry:
     rotation = int(page.rotation or 0) % 360
     if rotation not in (0, 90, 180, 270):
@@ -978,6 +1003,7 @@ def parse_pdf_bytes(data: bytes, presentation_id: UUID, filename: str) -> Presen
             non_text = NonTextContentState.PRESENT if graphics > 0 else NonTextContentState.ABSENT
             try:
                 frame_x0, frame_y0, frame_x1, frame_y1, source = _visible_box(page)
+                renderer_x0, renderer_y0, renderer_x1, renderer_y1 = _renderer_visible_box(page)
                 rotation = int(page.rotation or 0) % 360
                 if rotation not in (0, 90, 180, 270):
                     raise ParseFailure("INVALID_PAGE_ROTATION")
@@ -989,10 +1015,10 @@ def parse_pdf_bytes(data: bytes, presentation_id: UUID, filename: str) -> Presen
                     display_width_units=raw_w,
                     display_height_units=raw_h,
                     display_aspect_ratio=raw_w / raw_h,
-                    visible_x0_units=frame_x0,
-                    visible_y0_units=frame_y0,
-                    visible_x1_units=frame_x1,
-                    visible_y1_units=frame_y1,
+                    visible_x0_units=renderer_x0,
+                    visible_y0_units=renderer_y0,
+                    visible_x1_units=renderer_x1,
+                    visible_y1_units=renderer_y1,
                 )
             except ParseFailure as exc:
                 # A bad page must not destroy valid pages. Keep an explicit unknown page.

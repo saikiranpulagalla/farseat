@@ -39,6 +39,15 @@ def test_page_rotation_supports_text_that_is_visually_horizontal(deg,aspect):
     assert texts[0].text_preview == "NORMAL TEXT"
 
 
+def test_rotated_page_attestation_frame_remains_in_unrotated_renderer_coordinates():
+    model=parse_pdf_bytes(visual_horizontal_rotated_pdf(90),uuid4(),"r.pdf")
+    geometry=model.pages[0].geometry
+    # PDF.js page.view is source-frame (400 x 300), whereas the display frame
+    # is rotated (300 x 400). They must not be conflated during attestation.
+    assert geometry.display_aspect_ratio == pytest.approx(300 / 400)
+    assert (geometry.visible_x0_units,geometry.visible_y0_units,geometry.visible_x1_units,geometry.visible_y1_units)==(0,0,400,300)
+
+
 def test_rotating_horizontal_source_text_without_compensation_becomes_unsupported_vertical_text():
     model=parse_pdf_bytes(add_page_rotation(make_pdf("Vertical after rotate"),90),uuid4(),"r.pdf")
     assert model.pages[0].elements

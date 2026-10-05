@@ -12,7 +12,7 @@ Presentation editors understand the slide. AV tools understand the room. FarSeat
 
 ## What V1 does
 
-- accepts PDF uploads up to 20 MiB and 75 pages; PDFs that exceed structural or safe-processing limits may be rejected;
+- accepts PDF uploads up to 20 MiB and 75 pages; PDFs that exceed the 250,000-character, 20,000-logical-run, serialized-model, or safe-processing limits may be rejected;
 - extracts supported horizontal visible text without OCR;
 - models the **active displayed image**, including per-slide aspect-ratio letterboxing;
 - models up to 200 seats using perpendicular distance to the display plane;
@@ -97,15 +97,42 @@ docker compose up --build
 
 Then open `http://localhost:8080`. nginx serves the built frontend and proxies same-origin `/api` and `/health` requests to the single backend worker. `FARSEAT_ALLOWED_ORIGINS` and `FARSEAT_MAX_CONCURRENT_UPLOADS` are configurable through environment variables; `.env.example` documents the defaults.
 
+The included nginx reverse proxy is the supported hardened production ingress. It applies a 21 MiB HTTP request-body limit, while FarSeat applies a separate 20 MiB PDF-file limit after multipart handling. This allowance deliberately leaves room for multipart framing. Running Uvicorn directly is suitable for local development, but does **not** provide the same pre-multipart request-body protection as the included nginx deployment.
+
+FarSeat keeps presentations and analyses only in the process-local ephemeral store. They expire after 30 minutes; restarting the backend also clears them. The default store accepts up to 8 presentations and 24 analysis snapshots and rejects new work at capacity rather than silently evicting an active session. This is why V1 production deployment must use one backend worker.
+
+## API and capability use
+
+The browser receives a presentation capability once from `POST /api/presentations`. Supply it in the `X-FarSeat-Token` header for subsequent presentation retrieval, analysis, seat-detail retrieval, and deletion. IDs alone do not grant access, and capabilities are never placed in URLs. Missing or incorrect capabilities receive non-disclosing access errors; expired objects return a session-expired response.
+
+The key endpoints are:
+
+- `POST /api/presentations` — multipart PDF upload;
+- `GET` / `DELETE /api/presentations/{presentation_id}` — capability-protected presentation access/lifecycle;
+- `POST /api/analyze` — display, room, seats, profile, and PDF.js renderer manifest;
+- `GET /api/analyses/{analysis_id}/seats/{seat_id}` — on-demand, immutable seat detail.
+
+The FastAPI OpenAPI document is available from a running backend at `/openapi.json`.
+
 ## Tests and validation
 
 ```bash
-PYTHONPATH=backend pytest -q backend/tests
-cd frontend && npm test && npm run build
+# Fast backend suite (release-only resource tests are intentionally deselected)
+cd backend && python -m pytest -q
+
+# Required release-only parser-resource suite
+python -m pytest -q -m resource tests/test_resource_release.py
+
+# Frontend
+cd ../frontend && npm ci && npm test && npm run build
+
+# Source-identity and required-suite validator (run from repository root)
 cd .. && python scripts/validate_release.py
 ```
 
-The release validator treats absent required suites/files as failure and missing local frontend dependencies as `UNVERIFIED`, never PASS. Frontend qualification has now been executed on a network-enabled GitHub Actions runner: `npm ci`, all 6 frontend tests, TypeScript compilation, Vite production build, and production-output verification passed. The normal full-repository release workflow remains the final provenance gate once the complete source tree is published to GitHub.
+The release validator uses subprocess exit status and JUnit counts for Python suites; a zero-test, skipped, crashed, missing, stale, or dirty-source gate is not a pass. It also verifies that every closed P0/P1 ledger entry still references existing regression evidence. Browser evidence is source-commit-bound and generated artifacts remain outside source commits.
+
+For a release candidate, consult `validation/RELEASE_GATE.md` and `validation/defect-ledger.json` alongside the generated reports in `validation/reports/`. The expensive resource suite is intentionally separate from the fast suite and is required by release validation.
 
 ## Demo fixture
 
@@ -127,7 +154,9 @@ For a public deployment, place an HTTP request-body limit in front of FastAPI as
 
 ## Project status
 
-The artifact contains the hardened v1.0.3 release candidate and automated regression tests for the audit P0s. Backend validation is 83/83 green, and the exact v1.0.3 frontend source passes 6/6 frontend tests plus the TypeScript/Vite production build. The v1.0.3 browser gate is implemented in `scripts/browser_e2e.py` and runs in CI with Playwright-managed Chromium. In the local qualification container, the administrator-managed system Chromium blocks navigation, so the same gate was executed with the explicit `FARSEAT_CHROMIUM_EXECUTABLE` override against an exported Playwright headless-shell bundle and passed all browser checks. The browser evidence records the exact Git source commit and release validation rejects stale evidence from any other commit. A repository checkout should only be called **release-verified** after the normal full-source GitHub Actions workflow passes for that exact published commit. Generated CI results belong to workflow/release artifacts rather than being committed back into the source tree.
+FarSeat v1.0.3 is a hardened release candidate, not a readability or accessibility certification product. Its release contract requires both the fast backend suite and the separate resource suite, plus frontend Vitest and the TypeScript/Vite production build. Exact current counts, source identity, and evidence status belong in the validation records rather than this README, because a clean commit is required for release qualification and test counts can legitimately change with regression coverage.
+
+The browser gate is implemented in `scripts/browser_e2e.py` and runs with Playwright Chromium. A checkout should be called **release-verified** only when the release gate passes for that exact clean commit, including fresh source-bound browser evidence. Generated reports and screenshots are release artifacts; they are not committed back into the source tree.
 
 ## License
 
