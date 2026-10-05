@@ -1,83 +1,719 @@
 # FarSeat
 
-**FarSeat shows which structurally analyzed presentation text elements fall below a selected visual-demand reference target from different modeled seats.**
+> **A slide can look perfectly fine on your laptop and still demand too much from the back of the classroom.**
 
-Upload a machine-generated PDF, describe the usable display area and seating layout, and FarSeat combines presentation geometry with room geometry to trace a review result back to a modeled seat, slide, and text element.
+**FarSeat helps students and teachers review presentation text from different modeled seats before presenting.**
 
-FarSeat deliberately does **not** claim individual readability, WCAG compliance, AVIXA certification, medical/vision assessment, or complete analysis of arbitrary PDF content.
+Upload a machine-generated PDF, describe the usable display area and seating layout, and FarSeat combines:
 
-## Why this exists
+**presentation geometry + display geometry + seat distance**
 
-Presentation editors understand the slide. AV tools understand the room. FarSeat connects the two. A slide that appears comfortable on a laptop can impose much greater visual demand when the active image is physically small or the viewer is farther away.
+to show which structurally analyzed text elements fall below a selected visual-demand reference target.
 
-## What V1 does
+Every result can be traced back to the exact:
 
-- accepts PDF uploads up to 20 MiB and 75 pages; PDFs that exceed the 250,000-character, 20,000-logical-run, serialized-model, or safe-processing limits may be rejected;
-- extracts supported horizontal visible text without OCR;
-- models the **active displayed image**, including per-slide aspect-ratio letterboxing;
-- models up to 200 seats using perpendicular distance to the display plane;
-- compares measured structural text height against `PUBLIC_AVIXA_BDM_REFERENCE_V1`;
-- reports `PASS_TARGET`, `BELOW_TARGET`, `NOT_ANALYZED`, `OUTSIDE_REFERENCE_RANGE`, or `INVALID_GEOMETRY` at the comparison level;
-- keeps **result**, **coverage**, and **outside-reference** conditions separate in aggregate UI state;
-- renders the original PDF locally with PDF.js and overlays the selected normalized text region;
-- uses short-lived capability tokens and in-memory server state; no accounts or database.
+**seat → slide → text element**
 
-## EC-1.2 safety rules
+so the presenter knows what deserves review.
 
-The central rule is: **unknown never becomes pass**.
+---
 
-FarSeat separates five questions: page geometry trust, content analyzability, measurement confidence, seat/reference validity, and coverage. Unsupported or uncertain content never receives a fabricated element-height measurement. Geometry disagreements between backend parsing and PDF.js rendering become `NOT_ANALYZED`, not a plausible green result.
+## Why FarSeat exists
 
-The PDF parser captures PDF text rendering mode, alpha/soft-mask state, and proven rectangular clipping state so invisible or unsupported transparent/clipped text cannot masquerade as visible content. Complex clipping paths, optional-content/layered PDFs, RTL text, and unvalidated non-Latin shaping fail closed to `NOT_ANALYZED` in V1. Normal page rotations are normalized separately from arbitrary text rotation. Non-text graphics are tracked independently so a decorative logo does not poison otherwise complete text coverage.
+Presentation editors understand the **slide**.
 
-## Public BDM reference profile
+AV tools understand the **room**.
 
-`PUBLIC_AVIXA_BDM_REFERENCE_V1` encodes the public Basic Decision Making viewing-ratio / element-height table. FarSeat applies a conservative higher-target policy at shared interval boundaries. The profile is a **reference profile only**; FarSeat does not claim implementation or certification of the current ANSI/AVIXA standard.
+Students experience both at the same time.
 
-The exact encoded table is in `validation/reference/PUBLIC_AVIXA_BDM_REFERENCE_V1.json` and `backend/app/reference.py`.
+A presentation that feels comfortable while editing on a laptop may create very different visual demands when:
 
-## Architecture
+- the projected image is physically small,
+- a slide is letterboxed,
+- a student sits farther from the display,
+- or important text occupies only a small physical height on screen.
+
+Font size alone does not describe the whole viewing situation.
+
+FarSeat connects the presentation to the room.
+
+---
+
+## The school-life problem
+
+Presentations are part of everyday school life:
+
+- classroom lessons,
+- student projects,
+- group presentations,
+- club meetings,
+- science fairs,
+- assemblies,
+- workshops,
+- and school events.
+
+Presenters normally design slides while sitting close to a laptop.
+
+The audience does not.
+
+FarSeat gives a presenter a practical question to ask before presenting:
+
+> **Which parts of this presentation deserve another look for students sitting farther away?**
+
+FarSeat does not replace the teacher, student, or designer.
+
+It gives them better evidence for reviewing their slides.
+
+---
+
+# What FarSeat does
+
+## 1. Upload a presentation
+
+FarSeat accepts a machine-generated PDF.
+
+V1 supports PDFs up to:
+
+- **20 MiB**
+- **75 pages**
+
+Additional safe-processing limits apply to extracted characters, logical text runs, serialized models, and parser execution.
+
+---
+
+## 2. Describe the room
+
+Configure:
+
+- usable display dimensions,
+- presentation/display geometry,
+- and modeled audience seats.
+
+FarSeat supports up to **200 modeled seats**.
+
+---
+
+## 3. Analyze the presentation
+
+FarSeat:
+
+1. structurally parses supported text from the PDF;
+2. models the active image displayed for each slide;
+3. accounts for slide/display aspect-ratio letterboxing;
+4. models each seat relative to the display plane;
+5. determines the applicable visual-demand reference target;
+6. compares structural text height against that target.
+
+---
+
+## 4. Inspect the result
+
+FarSeat does not stop at:
+
+> “Slide 4 may need review.”
+
+A result can be traced through:
 
 ```text
-Browser
-  local File/Blob ────────> PDF.js renderer + geometry manifest
-       │
-       └── PDF upload ────> FastAPI
-                              │
-                              ├─ bounded upload read
-                              ├─ isolated parser subprocess
-                              ├─ canonical page/text model
-                              └─ temporary capability-protected store
-
-Room + display setup ─────> active-image geometry per slide
-Modeled seats ────────────> perpendicular viewing ratio
-Reference profile ────────> target element height
-Text measurements ────────> element × seat comparison
-                              │
-                              ├─ compact seat/slide summaries
-                              └─ on-demand seat detail
+modeled seat
+    ↓
+slide
+    ↓
+specific text element
+    ↓
+measured structural geometry
+    ↓
+reference comparison
 ```
 
-The matrix is factorized; FarSeat does not persist millions of element×seat objects.
+The original PDF is rendered locally with PDF.js and the selected text region is overlaid on the slide.
 
-## Supported and deliberately not analyzed
+That makes the result inspectable instead of mysterious.
 
-V1 is designed for horizontally rendered extractable text whose geometry fits the validated left-to-right pipeline, plus standard PDF page rotations of 0/90/180/270 degrees. Image-only/scanned slides, OCR-dependent text, handwriting, arbitrary rotated text, unsupported writing directions/shaping, ambient lighting, projector/image contrast, and individual vision are outside V1's analysis scope and are surfaced as not analyzed/coverage limitations rather than silently passed.
+---
 
-## Run locally
+# Result states
 
-Backend:
+FarSeat deliberately distinguishes different kinds of outcomes.
+
+| Result | Meaning |
+|---|---|
+| `PASS_TARGET` | The analyzed element meets the selected reference target for the modeled condition. |
+| `BELOW_TARGET` | The analyzed element falls below the selected reference target. |
+| `NOT_ANALYZED` | FarSeat cannot make the represented measurement safely for this content. |
+| `OUTSIDE_REFERENCE_RANGE` | The modeled condition is outside the encoded reference range. |
+| `INVALID_GEOMETRY` | Required geometry is invalid or unsupported. |
+
+The central rule is:
+
+> **Unknown never becomes pass.**
+
+Unsupported or uncertain content does not receive a fabricated successful result.
+
+---
+
+# 60-second judge path
+
+The repository includes a project-owned demonstration PDF:
+
+```text
+frontend/public/farseat-demo.pdf
+```
+
+It contains examples of:
+
+- ordinary presentation text,
+- deliberately small text,
+- mixed text sizes,
+- an ultra-wide slide,
+- and an image-only slide.
+
+A simple evaluation path is:
+
+1. Upload the demo PDF.
+2. Enter the display dimensions.
+3. Add modeled classroom seats.
+4. Run the analysis.
+5. Compare a nearer seat with a farther seat.
+6. Open a flagged slide.
+7. Select a text element.
+8. See the exact region highlighted on the original PDF.
+9. Inspect the image-only slide and notice that unsupported content becomes `NOT_ANALYZED`, not an invented green result.
+
+The key idea is simple:
+
+> **The same slide can create different visual demands from different seats.**
+
+---
+
+# Why FarSeat is different
+
+## Presentation tools usually know the document
+
+They know:
+
+- text,
+- fonts,
+- slide dimensions,
+- layouts.
+
+But they usually do not know the physical room.
+
+---
+
+## Room tools usually know the environment
+
+They may know:
+
+- display dimensions,
+- viewing distances,
+- room geometry.
+
+But they usually do not know the actual structural geometry of every text element in the presentation.
+
+---
+
+## FarSeat connects the two
+
+```text
+Presentation
+      +
+Displayed image size
+      +
+Room geometry
+      +
+Seat location
+      +
+Reference profile
+      ↓
+Seat-specific review result
+```
+
+That lets FarSeat answer a more useful question than:
+
+> “What font size did I use?”
+
+It asks:
+
+> **What physical visual demand does this specific text create from this modeled seat?**
+
+---
+
+# Architecture
+
+```mermaid
+flowchart TD
+
+    A["Machine-generated PDF"] --> B["Browser"]
+    A --> C["FastAPI Upload"]
+
+    B --> D["PDF.js Renderer"]
+    D --> E["Renderer Geometry Manifest"]
+
+    C --> F["Bounded Upload Read"]
+    F --> G["Isolated Parser Subprocess"]
+    G --> H["Canonical Page + Text Model"]
+    H --> I["Temporary Capability-Protected Store"]
+
+    J["Room + Display Setup"] --> K["Active Image Geometry per Slide"]
+    L["Modeled Seats"] --> M["Viewing Geometry"]
+    N["Reference Profile"] --> O["Target Element Height"]
+
+    E --> P["Comparison Engine"]
+    H --> P
+    K --> P
+    M --> P
+    O --> P
+
+    P --> Q{"Comparison Result"}
+
+    Q --> R["PASS_TARGET"]
+    Q --> S["BELOW_TARGET"]
+    Q --> T["NOT_ANALYZED"]
+    Q --> U["OUTSIDE_REFERENCE_RANGE"]
+    Q --> V["INVALID_GEOMETRY"]
+
+    R --> W["Seat / Slide Summaries"]
+    S --> W
+    T --> W
+    U --> W
+    V --> W
+
+    W --> X["On-demand Seat Detail"]
+    X --> Y["Original PDF + Selected Text Overlay"]
+```
+
+The analysis matrix is factorized.
+
+FarSeat does not persist millions of element × seat result objects.
+
+Compact summaries are produced first, while detailed seat information is retrieved on demand.
+
+---
+
+# How the analysis works
+
+## Structural PDF analysis
+
+FarSeat works with supported text from machine-generated PDFs.
+
+It does **not** use OCR in V1.
+
+The parser captures structural information including:
+
+- page geometry,
+- text geometry,
+- text rendering mode,
+- transparency state,
+- supported clipping state,
+- page rotation,
+- visible text structure.
+
+These checks help prevent invisible, unsupported, or uncertain content from masquerading as valid visible text.
+
+---
+
+## Display modeling
+
+A display's physical dimensions are not always the dimensions of the active slide image.
+
+Different slide aspect ratios can create letterboxing.
+
+FarSeat therefore computes the active displayed image separately for each slide.
+
+That active image geometry is what participates in the viewing calculation.
+
+---
+
+## Seat modeling
+
+FarSeat supports up to **200 modeled seats**.
+
+Seats are modeled using perpendicular distance to the display plane.
+
+This allows the same text element to produce different comparison outcomes for different modeled viewing positions.
+
+---
+
+## Reference comparison
+
+FarSeat V1 includes:
+
+```text
+PUBLIC_AVIXA_BDM_REFERENCE_V1
+```
+
+This repository encodes the publicly available Basic Decision Making viewing-ratio / element-height reference table.
+
+FarSeat applies a conservative higher-target policy at shared interval boundaries.
+
+The encoded reference data is located in:
+
+```text
+validation/reference/PUBLIC_AVIXA_BDM_REFERENCE_V1.json
+```
+
+and the corresponding backend implementation is in:
+
+```text
+backend/app/reference.py
+```
+
+This is a **reference profile**.
+
+FarSeat does not claim implementation or certification of the complete current ANSI/AVIXA standard.
+
+---
+
+# Fail-closed design
+
+FarSeat separates several questions that would be dangerous to collapse into one green/red result:
+
+1. Is the page geometry trusted?
+2. Is the content structurally analyzable?
+3. Is the measurement supported?
+4. Is the modeled seat geometry valid?
+5. Is the selected reference applicable?
+6. How much of the presentation was actually analyzed?
+
+Unsupported or uncertain content does not receive a fabricated structural measurement.
+
+Geometry disagreements between backend parsing and browser rendering become `NOT_ANALYZED` rather than a plausible-looking pass.
+
+---
+
+# Supported in V1
+
+FarSeat is designed for:
+
+- machine-generated PDFs,
+- extractable text,
+- supported horizontal text,
+- validated left-to-right text geometry,
+- normal PDF page rotations of:
+  - 0°
+  - 90°
+  - 180°
+  - 270°.
+
+---
+
+# Deliberately not analyzed in V1
+
+FarSeat does not claim support for:
+
+- image-only or scanned slides,
+- OCR-dependent text,
+- handwriting,
+- arbitrary rotated text,
+- unsupported writing directions,
+- unsupported text shaping,
+- complex clipping paths,
+- optional-content/layered PDF behavior outside the validated path,
+- ambient room lighting,
+- projector contrast,
+- display brightness,
+- individual eyesight,
+- or medical vision.
+
+Unsupported conditions are surfaced as limitations or `NOT_ANALYZED`.
+
+They are not silently treated as successful analysis.
+
+---
+
+# What FarSeat does not claim
+
+FarSeat is a **review tool**, not a certification product.
+
+It does not claim:
+
+- that an individual student can or cannot read a slide;
+- individual readability;
+- WCAG compliance;
+- accessibility certification;
+- AVIXA certification;
+- medical or vision assessment;
+- complete analysis of arbitrary PDF content.
+
+The project's claim is intentionally narrower:
+
+> **FarSeat shows which structurally analyzed presentation text elements fall below a selected visual-demand reference target from different modeled seats.**
+
+---
+
+# Privacy and security
+
+FarSeat was designed so that a classroom presentation does not need to become a permanent cloud record.
+
+## No accounts
+
+V1 has no user-account system.
+
+## No database
+
+Presentation and analysis state is held temporarily in process memory.
+
+## Short-lived sessions
+
+Presentation and analysis objects expire after approximately **30 minutes**.
+
+Restarting the backend also clears them.
+
+The default store supports:
+
+- up to **8 presentations**
+- up to **24 analysis snapshots**
+
+and rejects new work at capacity rather than silently evicting an active session.
+
+---
+
+## Capability-based access
+
+After upload, the browser receives a random presentation capability.
+
+Subsequent presentation and analysis access requires that capability in:
+
+```text
+X-FarSeat-Token
+```
+
+IDs alone do not grant access.
+
+Capability tokens:
+
+- are never placed in URLs;
+- are returned once to the browser;
+- are stored server-side only as SHA-256 digests.
+
+Missing or incorrect capabilities receive non-disclosing access errors.
+
+---
+
+## Bounded upload processing
+
+FarSeat applies multiple defensive limits.
+
+The application limits:
+
+- PDF file size,
+- page count,
+- extracted characters,
+- logical text runs,
+- serialized model size,
+- concurrent uploads,
+- parser wall-clock time,
+- parser memory use.
+
+The included nginx configuration applies a **21 MiB HTTP request-body limit**.
+
+FarSeat separately applies a **20 MiB PDF-file limit** after multipart handling.
+
+The difference leaves room for multipart framing.
+
+---
+
+## Isolated parsing
+
+PDF parsing executes inside a spawned subprocess.
+
+That prevents pathological input from consuming the main API process indefinitely.
+
+Parent/child communication uses a concurrently drained one-way pipe so large valid parsed models do not deadlock behind an IPC buffer.
+
+---
+
+# API
+
+The main endpoints are:
+
+```text
+POST /api/presentations
+```
+
+Upload a PDF.
+
+```text
+GET /api/presentations/{presentation_id}
+```
+
+Retrieve presentation information using the capability token.
+
+```text
+DELETE /api/presentations/{presentation_id}
+```
+
+Delete a presentation/session object.
+
+```text
+POST /api/analyze
+```
+
+Run analysis using:
+
+- display geometry,
+- room geometry,
+- modeled seats,
+- reference profile,
+- and the PDF.js renderer manifest.
+
+```text
+GET /api/analyses/{analysis_id}/seats/{seat_id}
+```
+
+Retrieve immutable on-demand seat detail.
+
+The FastAPI OpenAPI document is available from a running backend at:
+
+```text
+/openapi.json
+```
+
+---
+
+# Demo fixture
+
+FarSeat includes a six-slide project-owned demo fixture:
+
+```text
+frontend/public/farseat-demo.pdf
+```
+
+Structural expectations are hand-authored in:
+
+```text
+sample/farseat-demo.expected.json
+```
+
+Expected results are not generated from production code.
+
+That keeps the demonstration fixture independent from the analysis implementation it is intended to exercise.
+
+---
+
+# Tech stack
+
+## Frontend
+
+- React
+- TypeScript
+- Vite
+- Tailwind CSS
+- PDF.js
+
+## Backend
+
+- Python 3.12+
+- FastAPI
+- Pydantic
+- pdfplumber
+- pdfminer.six
+
+## Validation
+
+- Pytest
+- Vitest
+- Playwright Chromium
+- TypeScript/Vite production build
+- GitHub Actions
+- source-bound release validation
+
+## Deployment
+
+- Docker
+- Docker Compose
+- nginx
+- Uvicorn
+
+---
+
+# Repository structure
+
+```text
+FarSeat/
+├── backend/
+│   ├── app/                     # FastAPI application and analysis logic
+│   └── tests/                   # Backend regression tests
+│
+├── frontend/
+│   ├── src/                     # React + TypeScript interface
+│   └── public/
+│       └── farseat-demo.pdf     # Project-owned demo fixture
+│
+├── scripts/
+│   ├── browser_e2e.py           # Playwright browser release gate
+│   └── validate_release.py      # Exact-source release validation
+│
+├── sample/
+│   └── farseat-demo.expected.json
+│
+├── validation/
+│   ├── reference/
+│   │   └── PUBLIC_AVIXA_BDM_REFERENCE_V1.json
+│   ├── reports/
+│   ├── RELEASE_GATE.md
+│   └── defect-ledger.json
+│
+├── .github/
+│   └── workflows/
+│       └── ci.yml
+│
+├── docker-compose.yml
+└── README.md
+```
+
+---
+
+# Run locally
+
+## Requirements
+
+- Python **3.12+**
+- Node.js / npm
+
+---
+
+## Backend
+
+From the repository root:
 
 ```bash
 cd backend
 python -m venv .venv
-# Windows: .venv\Scripts\activate
-# macOS/Linux: source .venv/bin/activate
-pip install -e '.[dev]'
+```
+
+Activate the environment.
+
+### Windows PowerShell
+
+```powershell
+.venv\Scripts\Activate.ps1
+```
+
+### macOS / Linux
+
+```bash
+source .venv/bin/activate
+```
+
+Install dependencies:
+
+```bash
+pip install -e ".[dev]"
+```
+
+Start the backend:
+
+```bash
 uvicorn app.main:app --reload --workers 1 --port 8000
 ```
 
-Frontend in another terminal:
+---
+
+## Frontend
+
+Open another terminal:
 
 ```bash
 cd frontend
@@ -85,79 +721,210 @@ npm ci
 npm run dev
 ```
 
-Open `http://localhost:5173`. The frontend uses same-origin `/api` by default; the Vite development server proxies `/api` and `/health` to `http://localhost:8000`. Set `VITE_API_BASE` only when intentionally using a separate API origin.
+Then open:
 
-## Container deployment
+```text
+http://localhost:5173
+```
 
-The repository includes a single-worker FastAPI container plus an nginx/Vite frontend deployment path:
+The frontend uses same-origin `/api` by default.
+
+During development, Vite proxies:
+
+```text
+/api
+/health
+```
+
+to:
+
+```text
+http://localhost:8000
+```
+
+Set `VITE_API_BASE` only when intentionally using a separate API origin.
+
+---
+
+# Docker deployment
+
+The repository includes a deployment path using:
+
+- nginx,
+- built Vite frontend,
+- and a single-worker FastAPI backend.
+
+Run:
 
 ```bash
 docker compose up --build
 ```
 
-Then open `http://localhost:8080`. nginx serves the built frontend and proxies same-origin `/api` and `/health` requests to the single backend worker. `FARSEAT_ALLOWED_ORIGINS` and `FARSEAT_MAX_CONCURRENT_UPLOADS` are configurable through environment variables; `.env.example` documents the defaults.
+Then open:
 
-The included nginx reverse proxy is the supported hardened production ingress. It applies a 21 MiB HTTP request-body limit, while FarSeat applies a separate 20 MiB PDF-file limit after multipart handling. This allowance deliberately leaves room for multipart framing. Running Uvicorn directly is suitable for local development, but does **not** provide the same pre-multipart request-body protection as the included nginx deployment.
-
-FarSeat keeps presentations and analyses only in the process-local ephemeral store. They expire after 30 minutes; restarting the backend also clears them. The default store accepts up to 8 presentations and 24 analysis snapshots and rejects new work at capacity rather than silently evicting an active session. This is why V1 production deployment must use one backend worker.
-
-## API and capability use
-
-The browser receives a presentation capability once from `POST /api/presentations`. Supply it in the `X-FarSeat-Token` header for subsequent presentation retrieval, analysis, seat-detail retrieval, and deletion. IDs alone do not grant access, and capabilities are never placed in URLs. Missing or incorrect capabilities receive non-disclosing access errors; expired objects return a session-expired response.
-
-The key endpoints are:
-
-- `POST /api/presentations` — multipart PDF upload;
-- `GET` / `DELETE /api/presentations/{presentation_id}` — capability-protected presentation access/lifecycle;
-- `POST /api/analyze` — display, room, seats, profile, and PDF.js renderer manifest;
-- `GET /api/analyses/{analysis_id}/seats/{seat_id}` — on-demand, immutable seat detail.
-
-The FastAPI OpenAPI document is available from a running backend at `/openapi.json`.
-
-## Tests and validation
-
-```bash
-# Fast backend suite (release-only resource tests are intentionally deselected)
-cd backend && python -m pytest -q
-
-# Required release-only parser-resource suite
-python -m pytest -q -m resource tests/test_resource_release.py
-
-# Frontend
-cd ../frontend && npm ci && npm test && npm run build
-
-# Source-identity and required-suite validator (run from repository root)
-cd .. && python scripts/validate_release.py
+```text
+http://localhost:8080
 ```
 
-The release validator uses subprocess exit status and JUnit counts for Python suites; a zero-test, skipped, crashed, missing, stale, or dirty-source gate is not a pass. It also verifies that every closed P0/P1 ledger entry still references existing regression evidence. Browser evidence is source-commit-bound and generated artifacts remain outside source commits.
+nginx serves the frontend and proxies:
 
-For a release candidate, consult `validation/RELEASE_GATE.md` and `validation/defect-ledger.json` alongside the generated reports in `validation/reports/`. The expensive resource suite is intentionally separate from the fast suite and is required by release validation.
+```text
+/api
+/health
+```
 
-## Demo fixture
+to the backend.
 
-`frontend/public/farseat-demo.pdf` is a six-slide, project-owned fixture covering ordinary text, deliberately small text, mixed text sizes, an ultra-wide slide, and an image-only slide. Structural expectations are hand-authored in `sample/farseat-demo.expected.json`; expected results are not generated from production code.
+The single-worker requirement is intentional because FarSeat V1 uses a process-local ephemeral capability store.
 
-## Privacy and security
+---
 
-FarSeat processes uploaded PDFs to create a temporary analysis model. The original uploaded file is not intentionally retained after parsing, although the web framework may spool upload bytes to temporary storage while receiving them. Presentation and analysis objects are held in process memory with TTL expiry. A random capability token is returned once to the browser and is required for later access; tokens are stored only as SHA-256 digests and are never placed in URLs.
+# Tests
 
-For a public deployment, place an HTTP request-body limit in front of FastAPI as defense in depth. The included nginx configuration uses a 21 MB body limit, and the application additionally caps concurrent upload ingestion and performs a single bounded read of at most 20 MiB + 1 byte before parsing. Parser work runs in a spawned subprocess with a wall deadline and memory ceiling so pathological inputs cannot consume the API process indefinitely. Parent/child transport uses a concurrently drained one-way pipe so large valid parsed models cannot deadlock behind an IPC buffer. The upload ceiling and safe-processing protections are independent: a PDF within 20 MiB can still be rejected when it exceeds safe structural or processing limits.
+## Backend
 
-## Tech stack
+```bash
+cd backend
+python -m pytest -q
+```
 
-- React + TypeScript + Vite + Tailwind CSS
-- PDF.js for local rendering / renderer geometry
-- FastAPI + Pydantic
-- pdfplumber/pdfminer.six for structural PDF parsing
-- pytest; GitHub Actions release gate
+---
 
-## Project status
+## Release-only parser resource suite
 
-FarSeat v1.0.3 is a hardened release candidate, not a readability or accessibility certification product. Its release contract requires both the fast backend suite and the separate resource suite, plus frontend Vitest and the TypeScript/Vite production build. Exact current counts, source identity, and evidence status belong in the validation records rather than this README, because a clean commit is required for release qualification and test counts can legitimately change with regression coverage.
+```bash
+python -m pytest -q -m resource tests/test_resource_release.py
+```
 
-The browser gate is implemented in `scripts/browser_e2e.py` and runs with Playwright Chromium. A checkout should be called **release-verified** only when the release gate passes for that exact clean commit, including fresh source-bound browser evidence. Generated reports and screenshots are release artifacts; they are not committed back into the source tree.
+---
+
+## Frontend tests and production build
+
+```bash
+cd ../frontend
+npm ci
+npm test -- --run
+npm run build
+```
+
+---
+
+# Browser end-to-end validation
+
+FarSeat includes a Playwright Chromium browser gate:
+
+```text
+scripts/browser_e2e.py
+```
+
+It exercises the browser workflow against the running frontend and backend.
+
+Browser evidence is tied to the source commit used for validation.
+
+---
+
+# Release validation
+
+From the repository root:
+
+```bash
+python scripts/validate_release.py
+```
+
+The release validator checks more than whether commands return zero.
+
+A release gate is not considered passing when required evidence is:
+
+- missing,
+- stale,
+- skipped,
+- zero-test,
+- crashed,
+- source-mismatched,
+- or generated from a dirty source tree.
+
+It also verifies that closed high-priority defect-ledger entries continue to reference existing regression evidence.
+
+Generated validation reports and screenshots are release artifacts rather than application source.
+
+For release-candidate evaluation, also review:
+
+```text
+validation/RELEASE_GATE.md
+validation/defect-ledger.json
+validation/reports/
+```
+
+---
+
+# AI-use disclosure
+
+AI-assisted development tools were used during FarSeat's development for tasks including:
+
+- brainstorming,
+- architecture review,
+- debugging,
+- code review,
+- edge-case analysis,
+- testing strategy,
+- and documentation assistance.
+
+AI does **not** decide FarSeat's runtime comparison results.
+
+The runtime analysis is based on deterministic processing of:
+
+- PDF structure,
+- structural text geometry,
+- display geometry,
+- modeled seat geometry,
+- and the selected reference profile.
+
+The final project behavior, implementation decisions, validation, and understanding remain the responsibility of the project author.
+
+---
+
+# Current project status
+
+FarSeat **v1.0.3** is a hardened release candidate.
+
+It is not presented as:
+
+- a readability certification product,
+- an accessibility certification product,
+- a medical assessment,
+- or an AVIXA-certified system.
+
+Release qualification is intentionally tied to an exact clean source commit.
+
+A checkout should be described as release-verified only when the complete release gate passes for that exact commit.
+
+---
+
+# Limits and future work
+
+FarSeat intentionally keeps V1 narrow.
+
+Possible future work includes:
+
+- carefully qualified support for additional writing systems;
+- validated handling of more complex PDF content;
+- additional room-modeling options;
+- richer classroom layout tools;
+- broader presentation-authoring integrations;
+- further independent evaluation of the reference-comparison workflow.
+
+Any expansion should preserve the current principle:
+
+> **Unsupported evidence should remain visible as uncertainty rather than being converted into a confident result.**
+
+---
+
+# The idea in one sentence
+
+> **Presentation tools understand the slide. AV tools understand the room. FarSeat connects the two so presenters can review what their slides demand from different seats before the presentation begins.**
+
+---
 
 ## License
 
-MIT.
+MIT
